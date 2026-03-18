@@ -1,0 +1,123 @@
+[1G[0K⠙[1G[0K
+> autonomous-code-wizard@0.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+[1G[0K⠙[1G[0K4:20:39 PM [express] Server running on port 5000
+Browserslist: browsers data (caniuse-lite) is 9 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+
+
+
+
+
+
+[1;1H[0J[2m4:23:13 PM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2m.local/skills/.tmp-create-artifact-LSZRUkPA-0wltXAqorFzJ/artifacts/mockup-sandbox/files/index.html[22m
+
+
+
+
+
+
+
+[1;1H[0J[2m4:23:13 PM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2m.local/skills/.tmp-create-artifact-LSZRUkPA-0wltXAqorFzJ/artifacts/expo/files/server/templates/landing-page.html[22m
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m4:23:13 PM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2m.local/skills/.tmp-create-artifact-LSZRUkPA-0wltXAqorFzJ/artifacts/expo/files/server/templates/landing-page.html[22m [33m(x2)[39m
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m4:23:13 PM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2m.local/skills/.tmp-create-artifact-LSZRUkPA-0wltXAqorFzJ/artifacts/mockup-sandbox/files/index.html[22m
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m4:23:13 PM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2m.local/skills/create-artifact/artifacts/mockup-sandbox/files/index.html[22m
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m4:23:13 PM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2m.local/skills/create-artifact/artifacts/expo/files/server/templates/landing-page.html[22m
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m4:28:35 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/VibeCoding.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m4:29:40 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/agents/CodeWorkspace.tsx, /src/index.css[22m
+[2m4:29:41 PM[22m [36m[1m[vite][22m[39m [32m✨ new dependencies optimized: [33mjszip[32m[39m
+[2m4:29:41 PM[22m [36m[1m[vite][22m[39m [32m✨ optimized dependencies changed. reloading[39m
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m4:29:51 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/agents/AgentAvatar.tsx, /src/index.css[22m
+[2m4:29:52 PM[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/agents/AgentAvatar.tsx[22m Could not Fast Refresh ("agentConfig" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react-swc#consistent-components-exports
+[2m4:29:52 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/agents/AgentActivityFeed.tsx, /src/index.css, /src/components/agents/AgentPipeline.tsx[22m
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m4:31:52 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/VibeCoding.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m4:32:10 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/agents/AgentActivityFeed.tsx, /src/index.css[22m

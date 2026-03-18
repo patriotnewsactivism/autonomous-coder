@@ -1,0 +1,87 @@
+
+> autonomous-code-wizard@0.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+[1G[0K4:32:14 PM [express] Server running on port 5000
+Browserslist: browsers data (caniuse-lite) is 9 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+
+
+
+
+
+
+
+[1;1H[0J[2m4:46:58 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/VibeCoding.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m4:48:49 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/agents/AgentAvatar.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m4:49:02 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/agents/AgentPipeline.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m4:50:35 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/agents/CodeWorkspace.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m4:51:06 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/agents/VibeInput.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m4:52:37 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/VibeCoding.tsx, /src/index.css[22m
