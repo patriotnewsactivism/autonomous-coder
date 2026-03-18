@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { connectToGitHub } from "../lib/github";
 import { storage } from "./storage";
 
 interface Issue {
@@ -718,6 +719,20 @@ export async function registerRoutes(app: Express): Promise<void> {
       res.json({ pr: prInfo, review });
     } catch (error) {
       res.status(500).json({ error: "Failed to analyze PR" });
+    }
+  });
+
+  app.post("/api/github/clone", async (req, res) => {
+    try {
+      const { repoUrl } = req.body;
+      if (!repoUrl) {
+        return res.status(400).json({ error: "Repository URL is required" });
+      }
+
+      const result = await connectToGitHub(repoUrl);
+      res.json({ result });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to clone repository" });
     }
   });
 }
