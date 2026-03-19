@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { connectToGitHub } from "../lib/github";
+import { connectToGitHub } from "../src/lib/github";
 import { storage } from "./storage";
 
 interface Issue {
