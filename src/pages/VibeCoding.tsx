@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Sparkles, Activity, FileCode, Brain, Github, History, Clock, Link2, Check, Coins, RotateCcw, ChevronDown, DollarSign, Save } from "lucide-react";
 import Header from "@/components/Header";
-import VibeInput from "@/components/agents/VibeInput";
+import VibeInput, { BuildMode, ProjectType } from "@/components/agents/VibeInput";
 import AgentPipeline from "@/components/agents/AgentPipeline";
 import AgentActivityFeed from "@/components/agents/AgentActivityFeed";
 import TaskList from "@/components/agents/TaskList";
@@ -48,6 +48,8 @@ const VibeCoding = () => {
   const [modelPricing, setModelPricing] = useState<Record<string, { input: number; output: number }>>({});
   const [showModelMenu, setShowModelMenu] = useState(false);
   const [autoSaved, setAutoSaved] = useState(false);
+  const [buildMode, setBuildMode] = useState<BuildMode>("vibe");
+  const [projectType, setProjectType] = useState<ProjectType | null>(null);
   const stopRef = useRef(false);
 
   // Fetch available models
@@ -163,12 +165,19 @@ const VibeCoding = () => {
   }, []);
 
   // ── Main pipeline ─────────────────────────────────────────────────────────
-  const runAutonomousAgents = useCallback(async (goal: string) => {
+  const runAutonomousAgents = useCallback(async (rawGoal: string, mode: BuildMode = "vibe", pt?: ProjectType) => {
     setIsRunning(true);
+    setBuildMode(mode);
+    if (pt) setProjectType(pt);
     stopRef.current = false;
     setMessages([]); setTasks([]); setGeneratedFiles([]);
     setCompletedAgents([]); setAgentSequence([]);
     setLastProjectId(null);
+
+    // Enhance goal for AI Employee mode
+    const goal = mode === "employee" && pt
+      ? `[AI EMPLOYEE MODE - ${pt.label.toUpperCase()}]\nProject Type: ${pt.label}\nTech Stack: ${pt.techStack}\nSpecialization: ${pt.agentHint}\n\nUser Request: ${rawGoal}\n\nIMPORTANT: Work with FULL AUTONOMY. Build the complete project end-to-end. Make all technical decisions independently. Only flag critical business decisions. Produce production-ready, deployable code.`
+      : rawGoal;
     resetSessionTokens();
     setSessionTokens(0);
 
@@ -361,10 +370,10 @@ const VibeCoding = () => {
             </span>
           </div>
           <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-4 sm:mb-6 leading-tight px-2">
-            Vibe code like a <span className="gradient-text-primary">beast</span>
+            {buildMode === "employee" ? <>Your AI <span className="text-emerald-400">Employee</span> is ready</> : <>Vibe code like a <span className="gradient-text-primary">beast</span></>}
           </h1>
           <p className="text-sm sm:text-lg text-muted-foreground max-w-2xl mx-auto px-2">
-            Describe your idea. The Orchestrator assembles the optimal agent team, then reviews and deploys.
+            {buildMode === "employee" ? "Delegate your project. Full autonomy. Production-ready output." : "Describe your idea. The Orchestrator assembles the optimal agent team, then reviews and deploys."}
           </p>
 
           {/* Model selector + Cost tracker */}
@@ -477,7 +486,7 @@ const VibeCoding = () => {
         {activeTab === "build" && (
           <>
             <section className="max-w-3xl mx-auto mb-8 sm:mb-12">
-              <VibeInput onSubmit={runAutonomousAgents} isRunning={isRunning} onStop={handleStop} />
+              <VibeInput onSubmit={(goal, mode, pt) => runAutonomousAgents(goal, mode, pt)} isRunning={isRunning} onStop={handleStop} />
             </section>
 
             <div className="grid lg:grid-cols-3 gap-4 sm:gap-8">
