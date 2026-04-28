@@ -114,8 +114,11 @@ export interface SpecialistResult {
   summary: string;
 }
 
-// ── Token tracking ────────────────────────────────────────────────────────────
+// ── Token & Cost tracking ─────────────────────────────────────────────────────
 export const SESSION_TOKENS_KEY = "acw_session_tokens";
+export const SESSION_COST_KEY = "acw_session_cost";
+export const SELECTED_MODEL_KEY = "acw_selected_model";
+export const AUTOSAVE_KEY = "acw_autosave";
 
 export function getSessionTokens(): number {
   try { return parseInt(localStorage.getItem(SESSION_TOKENS_KEY) || "0") || 0; } catch { return 0; }
@@ -133,11 +136,68 @@ export function resetSessionTokens() {
   try { localStorage.setItem(SESSION_TOKENS_KEY, "0"); } catch { /* noop */ }
 }
 
-// GPT-4o pricing: $2.50/1M input + $10/1M output — simplified to avg ~$6.25/1M
+export function getSessionCost(): number {
+  try { return parseFloat(localStorage.getItem(SESSION_COST_KEY) || "0") || 0; } catch { return 0; }
+}
+
+export function addSessionCost(usd: number): number {
+  try {
+    const total = getSessionCost() + usd;
+    localStorage.setItem(SESSION_COST_KEY, String(total));
+    return total;
+  } catch { return 0; }
+}
+
+export function resetSessionCost() {
+  try { localStorage.setItem(SESSION_COST_KEY, "0"); } catch { /* noop */ }
+}
+
+export function getSelectedModel(): string {
+  try { return localStorage.getItem(SELECTED_MODEL_KEY) || ""; } catch { return ""; }
+}
+
+export function setSelectedModel(model: string) {
+  try { localStorage.setItem(SELECTED_MODEL_KEY, model); } catch { /* noop */ }
+}
+
+export function formatCost(usd: number): string {
+  if (usd < 0.001) return "<$0.001";
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  return `$${usd.toFixed(3)}`;
+}
+
+// Legacy compat
 export function estimateCost(tokens: number): string {
   const cost = (tokens / 1_000_000) * 6.25;
   if (cost < 0.01) return "<$0.01";
   return `$${cost.toFixed(3)}`;
+}
+
+// ── Auto-save ────────────────────────────────────────────────────────────────
+export interface AutoSaveData {
+  goal: string;
+  files: GeneratedFile[];
+  agentSequence: AgentType[];
+  messages: Array<{ agent: AgentType; type: string; content: string }>;
+  timestamp: number;
+}
+
+export function autoSave(data: AutoSaveData) {
+  try {
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
+  } catch { /* storage full — noop */ }
+}
+
+export function getAutoSave(): AutoSaveData | null {
+  try {
+    const raw = localStorage.getItem(AUTOSAVE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+export function clearAutoSave() {
+  try { localStorage.removeItem(AUTOSAVE_KEY); } catch { /* noop */ }
 }
 
 // ── API helpers ──────────────────────────────────────────────────────────────
@@ -153,13 +213,19 @@ async function apiRequest(endpoint: string, options?: RequestInit) {
   return response.json();
 }
 
+export async function fetchModels(): Promise<{ models: string[]; default: string; pricing: Record<string, { input: number; output: number }> }> {
+  return apiRequest("/api/models");
+}
+
 export async function runAgent<T>(agentType: AgentType, goal: string, context?: any): Promise<T> {
+  const model = getSelectedModel() || undefined;
   const data = await apiRequest("/api/ai-agent", {
     method: "POST",
-    body: JSON.stringify({ agentType, goal, context }),
+    body: JSON.stringify({ agentType, goal, context, model }),
   });
   if (data.error) throw new Error(data.error);
   if (data.tokens) addSessionTokens(data.tokens);
+  if (data.costUsd) addSessionCost(data.costUsd);
   return data.result as T;
 }
 
@@ -169,10 +235,11 @@ export async function runAgentStreaming<T>(
   context: any,
   onToken: (token: string) => void
 ): Promise<T> {
+  const model = getSelectedModel() || undefined;
   const response = await fetch("/api/ai-agent/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ agentType, goal, context }),
+    body: JSON.stringify({ agentType, goal, context, model }),
   });
 
   if (!response.ok) {
@@ -200,6 +267,7 @@ export async function runAgentStreaming<T>(
         else if (data.result !== undefined) {
           result = data.result as T;
           if (data.tokens) addSessionTokens(data.tokens);
+          if (data.costUsd) addSessionCost(data.costUsd);
         }
         else if (data.message !== undefined) throw new Error(data.message);
       } catch (e) {

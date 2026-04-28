@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Sparkles, Activity, FileCode, Brain, Github, History, Clock, Link2, Check, Coins, RotateCcw } from "lucide-react";
+import { Sparkles, Activity, FileCode, Brain, Github, History, Clock, Link2, Check, Coins, RotateCcw, ChevronDown, DollarSign, Save } from "lucide-react";
 import Header from "@/components/Header";
 import VibeInput from "@/components/agents/VibeInput";
 import AgentPipeline from "@/components/agents/AgentPipeline";
@@ -14,6 +14,9 @@ import {
   OrchestratorResult, StrategyResult, BuildResult, ReviewResult, FixResult,
   runOrchestrator, runStrategist, runBuilder, runSpecialist, runReviewer, runFixer,
   getSessionTokens, addSessionTokens, resetSessionTokens, estimateCost, SESSION_TOKENS_KEY,
+  getSessionCost, resetSessionCost, formatCost,
+  getSelectedModel, setSelectedModel, fetchModels,
+  autoSave, getAutoSave, clearAutoSave, AutoSaveData,
 } from "@/lib/agents";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -37,15 +40,66 @@ const VibeCoding = () => {
   const [generatedFiles, setGeneratedFiles] = useState<GeneratedFile[]>([]);
   const [activeTab, setActiveTab] = useState<"build" | "github" | "history">("build");
   const [sessionTokens, setSessionTokens] = useState(getSessionTokens);
+  const [sessionCost, setSessionCost] = useState(getSessionCost);
   const [copiedLink, setCopiedLink] = useState(false);
   const [lastProjectId, setLastProjectId] = useState<number | null>(null);
+  const [selectedModel, setSelectedModelState] = useState(getSelectedModel);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [modelPricing, setModelPricing] = useState<Record<string, { input: number; output: number }>>({});
+  const [showModelMenu, setShowModelMenu] = useState(false);
+  const [autoSaved, setAutoSaved] = useState(false);
   const stopRef = useRef(false);
 
-  // Sync token display on storage changes
+  // Fetch available models
   useEffect(() => {
-    const handler = () => setSessionTokens(getSessionTokens());
+    fetchModels().then((data) => {
+      setAvailableModels(data.models);
+      setModelPricing(data.pricing);
+      if (!getSelectedModel() && data.default) {
+        setSelectedModel(data.default);
+        setSelectedModelState(data.default);
+      }
+    }).catch(() => { /* models endpoint not available yet */ });
+  }, []);
+
+  // Sync token/cost display on storage changes
+  useEffect(() => {
+    const handler = () => {
+      setSessionTokens(getSessionTokens());
+      setSessionCost(getSessionCost());
+    };
     window.addEventListener("storage", handler);
-    return () => window.removeEventListener("storage", handler);
+    const interval = setInterval(handler, 2000); // Poll for streaming updates
+    return () => { window.removeEventListener("storage", handler); clearInterval(interval); };
+  }, []);
+
+  // Auto-save on file/message changes
+  useEffect(() => {
+    if (generatedFiles.length > 0) {
+      autoSave({
+        goal: "",
+        files: generatedFiles,
+        agentSequence: agentSequence as AgentType[],
+        messages: messages.map(m => ({ agent: m.agent, type: m.type, content: m.content })),
+        timestamp: Date.now(),
+      });
+      setAutoSaved(true);
+      const t = setTimeout(() => setAutoSaved(false), 2000);
+      return () => clearTimeout(t);
+    }
+  }, [generatedFiles, messages]);
+
+  // Restore auto-save on mount
+  useEffect(() => {
+    const saved = getAutoSave();
+    if (saved && saved.files.length > 0 && generatedFiles.length === 0) {
+      const age = Date.now() - saved.timestamp;
+      if (age < 24 * 60 * 60 * 1000) { // Less than 24h old
+        setGeneratedFiles(saved.files);
+        if (saved.agentSequence.length) setAgentSequence(saved.agentSequence);
+        toast.info("Restored auto-saved project");
+      }
+    }
   }, []);
 
   const { data: projectHistory = [] } = useQuery<ProjectHistory[]>({
@@ -313,23 +367,82 @@ const VibeCoding = () => {
             Describe your idea. The Orchestrator assembles the optimal agent team, then reviews and deploys.
           </p>
 
-          {/* Token tracker */}
-          {sessionTokens > 0 && (
+          {/* Model selector + Cost tracker */}
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+            {/* Model Selector */}
+            <div className="relative">
+              <button
+                onClick={() => setShowModelMenu(!showModelMenu)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/40 border border-border/40 text-xs text-muted-foreground hover:bg-muted/60 transition-colors"
+              >
+                <Brain className="h-3 w-3 text-purple-400" />
+                <span>{selectedModel || "Select model"}</span>
+                <ChevronDown className="h-3 w-3" />
+              </button>
+              {showModelMenu && (
+                <div className="absolute top-full mt-1 left-0 z-50 min-w-[200px] bg-popover border border-border rounded-lg shadow-lg p-1">
+                  {availableModels.map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => {
+                        setSelectedModel(m);
+                        setSelectedModelState(m);
+                        setShowModelMenu(false);
+                        toast.success(`Switched to ${m}`);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-md text-xs transition-colors ${
+                        m === selectedModel ? "bg-primary/10 text-primary" : "hover:bg-muted text-foreground"
+                      }`}
+                    >
+                      <div className="font-medium">{m}</div>
+                      {modelPricing[m] && (
+                        <div className="text-[10px] text-muted-foreground">
+                          ${modelPricing[m].input}/M in · ${modelPricing[m].output}/M out
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                  {availableModels.length <= 1 && (
+                    <div className="px-3 py-2 text-[10px] text-muted-foreground">
+                      Deploy more models in Azure to add them here
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Live Cost Badge */}
             <motion.div
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
-              className="inline-flex items-center gap-2 mt-4 px-3 py-1.5 rounded-full bg-muted/40 border border-border/40 text-xs text-muted-foreground"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/40 border border-border/40 text-xs text-muted-foreground"
             >
+              <DollarSign className="h-3 w-3 text-emerald-400" />
+              <span className="font-mono">{formatCost(sessionCost)}</span>
+              <span className="text-muted-foreground/50">·</span>
               <Coins className="h-3 w-3 text-amber-400" />
-              <span>{sessionTokens.toLocaleString()} tokens · ≈ {estimateCost(sessionTokens)}</span>
-              <button onClick={() => { resetSessionTokens(); setSessionTokens(0); }}
+              <span>{sessionTokens.toLocaleString()}</span>
+              <button onClick={() => { resetSessionTokens(); resetSessionCost(); setSessionTokens(0); setSessionCost(0); }}
                 className="text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-                title="Reset token counter"
+                title="Reset counters"
               >
                 <RotateCcw className="h-2.5 w-2.5" />
               </button>
             </motion.div>
-          )}
+
+            {/* Auto-save indicator */}
+            {autoSaved && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0 }}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] text-emerald-400"
+              >
+                <Save className="h-2.5 w-2.5" />
+                <span>Saved</span>
+              </motion.div>
+            )}
+          </div>
         </section>
 
         {/* Pipeline */}

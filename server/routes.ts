@@ -371,18 +371,55 @@ const AZURE_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT || "https://openaiyoutu
 const AZURE_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-5-mini";
 const AZURE_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || "2024-02-01";
 
-function getAzureUrl(): string {
-  return `${AZURE_ENDPOINT}/openai/deployments/${AZURE_DEPLOYMENT}/chat/completions?api-version=${AZURE_API_VERSION}`;
+// Model pricing per 1M tokens [input, output] in USD
+const MODEL_PRICING: Record<string, [number, number]> = {
+  "gpt-5-mini": [0.15, 0.60],
+  "gpt-4o": [2.50, 10.00],
+  "gpt-4o-mini": [0.15, 0.60],
+  "gpt-4": [30.00, 60.00],
+  "gpt-4-turbo": [10.00, 30.00],
+  "gpt-35-turbo": [0.50, 1.50],
+  "o1-mini": [1.10, 4.40],
+  "o1": [15.00, 60.00],
+};
+
+// Available deployments (comma-separated in env, or just the default)
+function getAvailableModels(): string[] {
+  const extra = process.env.AZURE_OPENAI_MODELS || "";
+  const models = extra.split(",").map(s => s.trim()).filter(Boolean);
+  if (!models.includes(AZURE_DEPLOYMENT)) models.unshift(AZURE_DEPLOYMENT);
+  return models;
+}
+
+function getAzureUrl(deployment?: string): string {
+  const dep = deployment || AZURE_DEPLOYMENT;
+  return `${AZURE_ENDPOINT}/openai/deployments/${dep}/chat/completions?api-version=${AZURE_API_VERSION}`;
+}
+
+interface AIUsage {
+  content: string;
+  tokens: number;
+  promptTokens: number;
+  completionTokens: number;
+  model: string;
+  costUsd: number;
+}
+
+function calcCost(model: string, promptTokens: number, completionTokens: number): number {
+  const pricing = MODEL_PRICING[model] || MODEL_PRICING[AZURE_DEPLOYMENT] || [0.15, 0.60];
+  return (promptTokens / 1_000_000) * pricing[0] + (completionTokens / 1_000_000) * pricing[1];
 }
 
 async function callAI(
   systemPrompt: string,
-  userMessage: string
-): Promise<{ content: string; tokens: number }> {
+  userMessage: string,
+  model?: string
+): Promise<AIUsage> {
   const apiKey = process.env.AZURE_OPENAI_API_KEY;
   if (!apiKey) throw new Error("AZURE_OPENAI_API_KEY is not configured");
 
-  const response = await fetch(getAzureUrl(), {
+  const deployment = model || AZURE_DEPLOYMENT;
+  const response = await fetch(getAzureUrl(deployment), {
     method: "POST",
     headers: {
       "api-key": apiKey,
@@ -407,20 +444,24 @@ async function callAI(
 
   const aiResponse = await response.json();
   const content = aiResponse.choices?.[0]?.message?.content;
+  const promptTokens = aiResponse.usage?.prompt_tokens || 0;
+  const completionTokens = aiResponse.usage?.completion_tokens || 0;
   const tokens = aiResponse.usage?.total_tokens || 0;
   if (!content) throw new Error("No response from AI");
-  return { content, tokens };
+  return { content, tokens, promptTokens, completionTokens, model: deployment, costUsd: calcCost(deployment, promptTokens, completionTokens) };
 }
 
 async function callAIStream(
   systemPrompt: string,
   userMessage: string,
-  onToken: (token: string) => void
-): Promise<{ content: string; tokens: number }> {
+  onToken: (token: string) => void,
+  model?: string
+): Promise<AIUsage> {
   const apiKey = process.env.AZURE_OPENAI_API_KEY;
   if (!apiKey) throw new Error("AZURE_OPENAI_API_KEY is not configured");
 
-  const response = await fetch(getAzureUrl(), {
+  const deployment = model || AZURE_DEPLOYMENT;
+  const response = await fetch(getAzureUrl(deployment), {
     method: "POST",
     headers: {
       "api-key": apiKey,
@@ -446,6 +487,8 @@ async function callAIStream(
 
   let fullContent = "";
   let tokens = 0;
+  let promptTokens = 0;
+  let completionTokens = 0;
   const reader = response.body!.getReader();
   const decoder = new TextDecoder();
 
@@ -467,6 +510,8 @@ async function callAIStream(
         // Capture usage from the final chunk (stream_options: { include_usage: true })
         if (parsed.usage?.total_tokens) {
           tokens = parsed.usage.total_tokens;
+          promptTokens = parsed.usage.prompt_tokens || 0;
+          completionTokens = parsed.usage.completion_tokens || 0;
         }
       } catch { /* skip malformed */ }
     }
@@ -477,7 +522,7 @@ async function callAIStream(
     tokens = Math.round(fullContent.length / 4);
   }
 
-  return { content: fullContent, tokens };
+  return { content: fullContent, tokens, promptTokens, completionTokens, model: deployment, costUsd: calcCost(deployment, promptTokens, completionTokens) };
 }
 
 function parseJsonResponse(content: string): any {
@@ -500,7 +545,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       const { code, language } = req.body;
       if (!code || typeof code !== "string") return res.status(400).json({ error: "Code is required" });
 
-      const { content } = await callAI(systemPromptAnalyze, `Analyze this ${language || "code"}:\n\n${code}`);
+      const { content } = await callAI(systemPromptAnalyze, `Analyze this ${language || "code"}:\n\n${code}`, req.body.model);
       let analysis: AnalysisResponse;
       try {
         analysis = parseJsonResponse(content);
@@ -519,14 +564,24 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
+  app.get("/api/models", (_req, res) => {
+    const models = getAvailableModels();
+    const pricing: Record<string, { input: number; output: number }> = {};
+    for (const m of models) {
+      const p = MODEL_PRICING[m] || [0.15, 0.60];
+      pricing[m] = { input: p[0], output: p[1] };
+    }
+    res.json({ models, default: AZURE_DEPLOYMENT, pricing });
+  });
+
   app.post("/api/ai-agent", async (req, res) => {
     try {
-      const { goal, context, agentType } = req.body;
+      const { goal, context, agentType, model } = req.body;
       const systemPrompt = systemPrompts[agentType] || systemPrompts.orchestrator;
-      const { content, tokens } = await callAI(systemPrompt, `Goal: ${goal}\n\nContext: ${JSON.stringify(context || {})}`);
+      const result = await callAI(systemPrompt, `Goal: ${goal}\n\nContext: ${JSON.stringify(context || {})}`, model);
       let parsed;
-      try { parsed = parseJsonResponse(content); } catch { parsed = { raw: content }; }
-      res.json({ agent: agentType, result: parsed, tokens });
+      try { parsed = parseJsonResponse(result.content); } catch { parsed = { raw: result.content }; }
+      res.json({ agent: agentType, result: parsed, tokens: result.tokens, promptTokens: result.promptTokens, completionTokens: result.completionTokens, costUsd: result.costUsd, model: result.model });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : "Agent failed" });
     }
@@ -540,20 +595,21 @@ export async function registerRoutes(app: Express): Promise<void> {
     res.flushHeaders();
 
     try {
-      const { goal, context, agentType } = req.body;
+      const { goal, context, agentType, model } = req.body;
       const systemPrompt = systemPrompts[agentType] || systemPrompts.orchestrator;
 
-      const { content: fullContent, tokens } = await callAIStream(
+      const result = await callAIStream(
         systemPrompt,
         `Goal: ${goal}\n\nContext: ${JSON.stringify(context || {})}`,
         (token) => {
           sendSSE(res, "token", { content: token });
-        }
+        },
+        model
       );
 
       let parsed;
-      try { parsed = parseJsonResponse(fullContent); } catch { parsed = { raw: fullContent }; }
-      sendSSE(res, "done", { agent: agentType, result: parsed, tokens });
+      try { parsed = parseJsonResponse(result.content); } catch { parsed = { raw: result.content }; }
+      sendSSE(res, "done", { agent: agentType, result: parsed, tokens: result.tokens, promptTokens: result.promptTokens, completionTokens: result.completionTokens, costUsd: result.costUsd, model: result.model });
       res.end();
     } catch (error) {
       sendSSE(res, "error", { message: error instanceof Error ? error.message : "Agent failed" });
