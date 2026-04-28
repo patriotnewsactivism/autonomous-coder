@@ -366,21 +366,29 @@ Rules:
 - Make minimum necessary changes`,
 };
 
+// Azure OpenAI configuration
+const AZURE_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT || "https://openaiyoutube.openai.azure.com";
+const AZURE_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-5-mini";
+const AZURE_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || "2024-02-01";
+
+function getAzureUrl(): string {
+  return `${AZURE_ENDPOINT}/openai/deployments/${AZURE_DEPLOYMENT}/chat/completions?api-version=${AZURE_API_VERSION}`;
+}
+
 async function callAI(
   systemPrompt: string,
   userMessage: string
 ): Promise<{ content: string; tokens: number }> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
+  const apiKey = process.env.AZURE_OPENAI_API_KEY;
+  if (!apiKey) throw new Error("AZURE_OPENAI_API_KEY is not configured");
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  const response = await fetch(getAzureUrl(), {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${apiKey}`,
+      "api-key": apiKey,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "gpt-4o",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },
@@ -394,7 +402,7 @@ async function callAI(
     const errorText = await response.text();
     if (response.status === 429) throw new Error("Rate limit exceeded. Please try again.");
     if (response.status === 401) throw new Error("Invalid API key.");
-    throw new Error(`OpenAI API error: ${response.status}`);
+    throw new Error(`Azure OpenAI error: ${response.status} - ${errorText}`);
   }
 
   const aiResponse = await response.json();
@@ -409,17 +417,16 @@ async function callAIStream(
   userMessage: string,
   onToken: (token: string) => void
 ): Promise<{ content: string; tokens: number }> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
+  const apiKey = process.env.AZURE_OPENAI_API_KEY;
+  if (!apiKey) throw new Error("AZURE_OPENAI_API_KEY is not configured");
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  const response = await fetch(getAzureUrl(), {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${apiKey}`,
+      "api-key": apiKey,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "gpt-4o",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },
@@ -434,7 +441,7 @@ async function callAIStream(
   if (!response.ok) {
     if (response.status === 429) throw new Error("Rate limit exceeded. Please try again.");
     if (response.status === 401) throw new Error("Invalid API key.");
-    throw new Error(`OpenAI API error: ${response.status}`);
+    throw new Error(`Azure OpenAI error: ${response.status}`);
   }
 
   let fullContent = "";

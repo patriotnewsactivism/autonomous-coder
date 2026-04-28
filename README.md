@@ -1,73 +1,59 @@
-# Welcome to your Lovable project
+# Autonomous Coder
 
-## Project info
+AI-powered multi-agent coding platform with 13 specialized agents for autonomous software development.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Agents
 
-## How can I edit this code?
+| Agent | Role |
+|-------|------|
+| **Orchestrator** | Coordinates the pipeline, delegates tasks |
+| **Strategist** | Plans architecture and approach |
+| **Database** | Designs schemas, writes migrations |
+| **API** | Builds endpoints and integrations |
+| **UI** | Creates frontend components and layouts |
+| **Builder** | Implements core logic and features |
+| **Testing** | Writes and runs test suites |
+| **Security** | Audits for vulnerabilities |
+| **Performance** | Optimizes speed and resource usage |
+| **Reviewer** | Code review and quality checks |
+| **Fixer** | Resolves bugs and issues |
+| **Refiner** | Polishes code style and readability |
+| **Deployer** | Handles build and deployment |
 
-There are several ways of editing your application.
+## Stack
 
-**Use Lovable**
+- **Frontend**: React + Vite + TailwindCSS + shadcn/ui
+- **Backend**: Express.js + Drizzle ORM + PostgreSQL
+- **AI**: Azure OpenAI (gpt-5-mini)
+- **Features**: Streaming responses, code workspace, live preview, GitHub integration, project history, token tracking
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Setup
 
-Changes made via Lovable will be committed automatically to this repo.
+```bash
+npm install
+```
 
-**Use your preferred IDE**
+Create a `.env` file:
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+```env
+AZURE_OPENAI_API_KEY=your_azure_openai_key
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+AZURE_OPENAI_DEPLOYMENT=gpt-5-mini
+AZURE_OPENAI_API_VERSION=2024-02-01
+DATABASE_URL=postgresql://...
+```
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Development
 
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Production
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```bash
+npm run build
+npm start
+```
 
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Server runs on port 5000.
