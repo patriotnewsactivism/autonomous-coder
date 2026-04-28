@@ -394,7 +394,7 @@ async function callAI(
         { role: "user", content: userMessage },
       ],
       temperature: 0.3,
-      max_tokens: 4096,
+      max_completion_tokens: 4096,
     }),
   });
 
@@ -432,7 +432,7 @@ async function callAIStream(
         { role: "user", content: userMessage },
       ],
       temperature: 0.3,
-      max_tokens: 4096,
+      max_completion_tokens: 4096,
       stream: true,
       stream_options: { include_usage: true },
     }),
