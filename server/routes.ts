@@ -430,7 +430,6 @@ async function callAI(
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },
       ],
-      temperature: 0.3,
       max_completion_tokens: 4096,
     }),
   });
@@ -472,7 +471,6 @@ async function callAIStream(
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },
       ],
-      temperature: 0.3,
       max_completion_tokens: 4096,
       stream: true,
       stream_options: { include_usage: true },
