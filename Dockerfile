@@ -9,9 +9,9 @@ RUN npm ci
 # Copy source
 COPY . .
 
-# Build frontend and server
-RUN ./node_modules/.bin/vite build && \
-    ./node_modules/.bin/esbuild server/index.ts \
+# Build frontend and server (use npx to avoid permission issues)
+RUN npx vite build && \
+    npx esbuild server/index.ts \
       --platform=node \
       --packages=external \
       --bundle \
