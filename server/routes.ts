@@ -796,4 +796,169 @@ export async function registerRoutes(app: Express): Promise<void> {
       res.status(500).json({ error: "Failed to clone repository" });
     }
   });
+
+  // ── Notification System ─────────────────────────────────────────────────────
+  const SLACK_NOTIFY_WEBHOOK = process.env.SLACK_NOTIFY_WEBHOOK || "";
+  const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
+  const NOTIFY_EMAIL = process.env.NOTIFY_EMAIL || "alerts@donmatthews.live";
+  const NOTIFY_TO_EMAIL = process.env.NOTIFY_TO_EMAIL || "wtpjournalism@gmail.com";
+  const SUPABASE_URL = process.env.SUPABASE_URL || "";
+  const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+
+  async function sendNotification(opts: {
+    projectId?: number;
+    agent: string;
+    severity: "info" | "warning" | "critical";
+    title: string;
+    message: string;
+    requiresDecision: boolean;
+    decisionOptions?: string[];
+  }) {
+    const results = { supabase: false, slack: false, email: false };
+
+    // 1. Store in Supabase
+    if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/coder_notifications`, {
+          method: "POST",
+          headers: {
+            apikey: SUPABASE_SERVICE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+            "Content-Type": "application/json",
+            Prefer: "return=minimal",
+          },
+          body: JSON.stringify({
+            project_id: opts.projectId || null,
+            agent: opts.agent,
+            severity: opts.severity,
+            title: opts.title,
+            message: opts.message,
+            requires_decision: opts.requiresDecision,
+            decision_options: opts.decisionOptions ? JSON.stringify(opts.decisionOptions) : null,
+          }),
+        });
+        results.supabase = true;
+      } catch (e) { console.error("[notify] Supabase error:", e); }
+    }
+
+    // 2. Slack notification
+    if (SLACK_NOTIFY_WEBHOOK) {
+      try {
+        const emoji = opts.severity === "critical" ? "🚨" : opts.severity === "warning" ? "⚠️" : "ℹ️";
+        const decisionText = opts.requiresDecision && opts.decisionOptions
+          ? `\n\n*Options:* ${opts.decisionOptions.map((o, i) => `\n${i + 1}. ${o}`).join("")}`
+          : "";
+        await fetch(SLACK_NOTIFY_WEBHOOK, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: `${emoji} *AI Employee — ${opts.title}*\nAgent: \`${opts.agent}\` | Severity: ${opts.severity}\n\n${opts.message}${decisionText}`,
+          }),
+        });
+        results.slack = true;
+      } catch (e) { console.error("[notify] Slack error:", e); }
+    }
+
+    // 3. Email notification via Resend
+    if (RESEND_API_KEY) {
+      try {
+        const emoji = opts.severity === "critical" ? "🚨" : opts.severity === "warning" ? "⚠️" : "ℹ️";
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${RESEND_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: NOTIFY_EMAIL,
+            to: [NOTIFY_TO_EMAIL],
+            subject: `${emoji} AI Employee: ${opts.title}`,
+            html: `
+              <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background: #0f172a; border-radius: 12px; padding: 24px; color: #e2e8f0;">
+                  <h2 style="margin: 0 0 8px; color: ${opts.severity === 'critical' ? '#ef4444' : opts.severity === 'warning' ? '#f59e0b' : '#10b981'};">
+                    ${emoji} ${opts.title}
+                  </h2>
+                  <p style="margin: 0 0 16px; color: #94a3b8; font-size: 14px;">Agent: ${opts.agent} · ${new Date().toLocaleString()}</p>
+                  <div style="background: #1e293b; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                    <p style="margin: 0; white-space: pre-wrap;">${opts.message}</p>
+                  </div>
+                  ${opts.requiresDecision ? `
+                    <div style="background: #1e293b; border: 1px solid #f59e0b; border-radius: 8px; padding: 16px;">
+                      <p style="margin: 0 0 8px; font-weight: bold; color: #f59e0b;">Decision Required:</p>
+                      ${(opts.decisionOptions || []).map((o, i) => `<p style="margin: 4px 0; color: #e2e8f0;">${i + 1}. ${o}</p>`).join("")}
+                      <p style="margin: 12px 0 0; font-size: 12px; color: #64748b;">Reply to this email or respond in Slack/the app.</p>
+                    </div>
+                  ` : ""}
+                </div>
+              </div>
+            `,
+          }),
+        });
+        results.email = true;
+      } catch (e) { console.error("[notify] Email error:", e); }
+    }
+
+    return results;
+  }
+
+  // Notification endpoint — agents call this when they need user attention
+  app.post("/api/notify", async (req, res) => {
+    try {
+      const { projectId, agent, severity, title, message, requiresDecision, decisionOptions } = req.body;
+      if (!title || !message) return res.status(400).json({ error: "title and message required" });
+
+      const results = await sendNotification({
+        projectId, agent: agent || "system",
+        severity: severity || "info", title, message,
+        requiresDecision: requiresDecision || false,
+        decisionOptions,
+      });
+
+      res.json({ sent: results });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to send notification" });
+    }
+  });
+
+  // Get notifications (for in-app notification panel)
+  app.get("/api/notifications", async (_req, res) => {
+    try {
+      if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return res.json([]);
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/coder_notifications?order=created_at.desc&limit=50`,
+        { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } }
+      );
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      res.json([]);
+    }
+  });
+
+  // Respond to a notification decision
+  app.post("/api/notifications/:id/respond", async (req, res) => {
+    try {
+      const { response: userResponse } = req.body;
+      if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return res.status(500).json({ error: "No storage" });
+      const result = await fetch(
+        `${SUPABASE_URL}/rest/v1/coder_notifications?id=eq.${req.params.id}`,
+        {
+          method: "PATCH",
+          headers: {
+            apikey: SUPABASE_SERVICE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+            "Content-Type": "application/json",
+            Prefer: "return=representation",
+          },
+          body: JSON.stringify({ user_response: userResponse, responded_at: new Date().toISOString() }),
+        }
+      );
+      const data = await result.json();
+      res.json(data[0] || {});
+    } catch (error) {
+      res.status(500).json({ error: "Failed to respond" });
+    }
+  });
+
 }
