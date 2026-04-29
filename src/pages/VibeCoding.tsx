@@ -205,6 +205,10 @@ const VibeCoding = () => {
       }
 
       if (stopRef.current) return;
+      // Ensure agentSequence is always a valid array
+      if (!Array.isArray(orchestration.agentSequence)) {
+        orchestration.agentSequence = ["strategist", "builder", "reviewer", "fixer"];
+      }
       const pipeline: AgentType[] = ["orchestrator", ...orchestration.agentSequence];
       setAgentSequence(pipeline);
       finalizeStreamingMessage("orchestrator", orchestration.understanding);
@@ -317,9 +321,10 @@ const VibeCoding = () => {
         }
       }
 
-      // Save
+      // Save (final persist to server + local auto-save)
       if (allFiles.length > 0) {
         saveMutation.mutate({ goal, files: allFiles, agentSequence: pipeline });
+        autoSave({ goal, files: allFiles, agentSequence: pipeline, messages: messages.map(m => ({ agent: m.agent, type: m.type, content: m.content })), timestamp: Date.now() });
       }
 
       setCurrentAgent(undefined);
@@ -608,7 +613,7 @@ const VibeCoding = () => {
       <footer className="border-t border-border/50 py-8">
         <div className="container mx-auto px-6 text-center">
           <p className="text-sm text-muted-foreground">
-            Autonomous Code Wizard · Up to 11 Specialized AI Agents · Powered by GPT-4o
+            Autonomous Code Wizard · Up to 11 Specialized AI Agents · Powered by DeepSeek V3.2
           </p>
         </div>
       </footer>

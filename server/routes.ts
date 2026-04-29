@@ -606,7 +606,14 @@ function parseJsonResponse(content: string): any {
   if (c.startsWith("```json")) c = c.slice(7);
   else if (c.startsWith("```")) c = c.slice(3);
   if (c.endsWith("```")) c = c.slice(0, -3);
-  return JSON.parse(c.trim());
+  const parsed = JSON.parse(c.trim());
+  // Ensure agentSequence is always a valid array when present
+  if (parsed && typeof parsed === "object" && "agentSequence" in parsed) {
+    if (!Array.isArray(parsed.agentSequence)) {
+      parsed.agentSequence = ["strategist", "builder", "reviewer", "fixer"];
+    }
+  }
+  return parsed;
 }
 
 function sendSSE(res: any, event: string, data: any) {
