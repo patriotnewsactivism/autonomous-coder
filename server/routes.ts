@@ -366,14 +366,31 @@ Rules:
 - Make minimum necessary changes`,
 };
 
-// Azure OpenAI configuration
+// ── Azure OpenAI configuration ─────────────────────────────────────────────
 const AZURE_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT || "https://openaiyoutube.openai.azure.com";
 const AZURE_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-5-mini";
 const AZURE_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || "2024-02-01";
 
+// ── DeepSeek V3.2 via Azure AI Foundry ─────────────────────────────────────
+const DEEPSEEK_ENDPOINT = process.env.DEEPSEEK_ENDPOINT || "https://patri-moar8a1w-eastus2.services.ai.azure.com/models/chat/completions?api-version=2024-05-01-preview";
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || "";
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "DeepSeek-V3-2";
+const USE_DEEPSEEK = Boolean(DEEPSEEK_API_KEY);
+
+// ── Grok 4.1 Fast Reasoning via Azure AI Foundry ──────────────────────────
+const GROK_ENDPOINT = process.env.GROK_ENDPOINT || "https://patri-mojrzk25-swedencentral.services.ai.azure.com/models/chat/completions?api-version=2024-05-01-preview";
+const GROK_API_KEY = process.env.GROK_API_KEY || "";
+const GROK_MODEL = process.env.GROK_MODEL || "grok-4-1-fast-reasoning";
+const USE_GROK = Boolean(GROK_API_KEY);
+
+// Default model: DeepSeek (cheapest) > Grok > Azure OpenAI
+const DEFAULT_MODEL = USE_DEEPSEEK ? DEEPSEEK_MODEL : (USE_GROK ? GROK_MODEL : AZURE_DEPLOYMENT);
+
 // Model pricing per 1M tokens [input, output] in USD
 const MODEL_PRICING: Record<string, [number, number]> = {
-  "gpt-5-mini": [0.15, 0.60],
+  "DeepSeek-V3-2": [0.28, 0.42],
+  "grok-4-1-fast-reasoning": [0.20, 0.50],
+  "gpt-5-mini": [0.25, 2.00],
   "gpt-4o": [2.50, 10.00],
   "gpt-4o-mini": [0.15, 0.60],
   "gpt-4": [30.00, 60.00],
@@ -383,11 +400,48 @@ const MODEL_PRICING: Record<string, [number, number]> = {
   "o1": [15.00, 60.00],
 };
 
-// Available deployments (comma-separated in env, or just the default)
+// Which provider handles which model
+type ModelProvider = "azure-foundry-deepseek" | "azure-foundry-grok" | "azure-openai";
+
+function getModelProvider(model: string): ModelProvider {
+  if (model === DEEPSEEK_MODEL || model.toLowerCase().includes("deepseek")) return "azure-foundry-deepseek";
+  if (model === GROK_MODEL || model.toLowerCase().includes("grok")) return "azure-foundry-grok";
+  return "azure-openai";
+}
+
+function getModelEndpoint(model: string): { url: string; headers: Record<string, string> } {
+  const provider = getModelProvider(model);
+  switch (provider) {
+    case "azure-foundry-deepseek":
+      return {
+        url: DEEPSEEK_ENDPOINT,
+        headers: { "Authorization": `Bearer ${DEEPSEEK_API_KEY}`, "Content-Type": "application/json" },
+      };
+    case "azure-foundry-grok":
+      return {
+        url: GROK_ENDPOINT,
+        headers: { "Authorization": `Bearer ${GROK_API_KEY}`, "Content-Type": "application/json" },
+      };
+    default: {
+      const dep = model || AZURE_DEPLOYMENT;
+      return {
+        url: `${AZURE_ENDPOINT}/openai/deployments/${dep}/chat/completions?api-version=${AZURE_API_VERSION}`,
+        headers: { "api-key": process.env.AZURE_OPENAI_API_KEY || "", "Content-Type": "application/json" },
+      };
+    }
+  }
+}
+
+// Available models (all configured providers)
 function getAvailableModels(): string[] {
+  const models: string[] = [];
+  if (USE_DEEPSEEK) models.push(DEEPSEEK_MODEL);
+  if (USE_GROK) models.push(GROK_MODEL);
+  // Azure OpenAI deployments
   const extra = process.env.AZURE_OPENAI_MODELS || "";
-  const models = extra.split(",").map(s => s.trim()).filter(Boolean);
-  if (!models.includes(AZURE_DEPLOYMENT)) models.unshift(AZURE_DEPLOYMENT);
+  const azureModels = extra.split(",").map(s => s.trim()).filter(Boolean);
+  if (!azureModels.includes(AZURE_DEPLOYMENT)) azureModels.unshift(AZURE_DEPLOYMENT);
+  models.push(...azureModels);
   return models;
 }
 
@@ -415,30 +469,42 @@ async function callAI(
   userMessage: string,
   model?: string
 ): Promise<AIUsage> {
-  const apiKey = process.env.AZURE_OPENAI_API_KEY;
-  if (!apiKey) throw new Error("AZURE_OPENAI_API_KEY is not configured");
+  const deployment = model || DEFAULT_MODEL;
+  const { url, headers } = getModelEndpoint(deployment);
+  const provider = getModelProvider(deployment);
 
-  const deployment = model || AZURE_DEPLOYMENT;
-  const response = await fetch(getAzureUrl(deployment), {
+  // For Azure AI Foundry models (DeepSeek, Grok), include model in body
+  const bodyPayload: any = {
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage },
+    ],
+    max_tokens: 4096,
+  };
+  if (provider !== "azure-openai") {
+    bodyPayload.model = deployment;
+  } else {
+    // Azure OpenAI uses max_completion_tokens
+    delete bodyPayload.max_tokens;
+    bodyPayload.max_completion_tokens = 4096;
+  }
+
+  const response = await fetch(url, {
     method: "POST",
-    headers: {
-      "api-key": apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userMessage },
-      ],
-      max_completion_tokens: 4096,
-    }),
+    headers,
+    body: JSON.stringify(bodyPayload),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
+    // Try fallback: if primary model fails, try next available
+    if (deployment !== AZURE_DEPLOYMENT && process.env.AZURE_OPENAI_API_KEY) {
+      console.log(`[callAI] ${deployment} failed (${response.status}), falling back to ${AZURE_DEPLOYMENT}`);
+      return callAI(systemPrompt, userMessage, AZURE_DEPLOYMENT);
+    }
     if (response.status === 429) throw new Error("Rate limit exceeded. Please try again.");
     if (response.status === 401) throw new Error("Invalid API key.");
-    throw new Error(`Azure OpenAI error: ${response.status} - ${errorText}`);
+    throw new Error(`AI error (${deployment}): ${response.status} - ${errorText}`);
   }
 
   const aiResponse = await response.json();
@@ -446,7 +512,14 @@ async function callAI(
   const promptTokens = aiResponse.usage?.prompt_tokens || 0;
   const completionTokens = aiResponse.usage?.completion_tokens || 0;
   const tokens = aiResponse.usage?.total_tokens || 0;
-  if (!content) throw new Error("No response from AI");
+  if (!content) {
+    // Fallback on empty response
+    if (deployment !== AZURE_DEPLOYMENT && process.env.AZURE_OPENAI_API_KEY) {
+      console.log(`[callAI] ${deployment} returned empty, falling back to ${AZURE_DEPLOYMENT}`);
+      return callAI(systemPrompt, userMessage, AZURE_DEPLOYMENT);
+    }
+    throw new Error("No response from AI");
+  }
   return { content, tokens, promptTokens, completionTokens, model: deployment, costUsd: calcCost(deployment, promptTokens, completionTokens) };
 }
 
@@ -456,31 +529,36 @@ async function callAIStream(
   onToken: (token: string) => void,
   model?: string
 ): Promise<AIUsage> {
-  const apiKey = process.env.AZURE_OPENAI_API_KEY;
-  if (!apiKey) throw new Error("AZURE_OPENAI_API_KEY is not configured");
+  const deployment = model || DEFAULT_MODEL;
+  const { url, headers } = getModelEndpoint(deployment);
+  const provider = getModelProvider(deployment);
 
-  const deployment = model || AZURE_DEPLOYMENT;
-  const response = await fetch(getAzureUrl(deployment), {
+  const bodyPayload: any = {
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage },
+    ],
+    max_tokens: 4096,
+    stream: true,
+    stream_options: { include_usage: true },
+  };
+  if (provider !== "azure-openai") {
+    bodyPayload.model = deployment;
+  } else {
+    delete bodyPayload.max_tokens;
+    bodyPayload.max_completion_tokens = 4096;
+  }
+
+  const response = await fetch(url, {
     method: "POST",
-    headers: {
-      "api-key": apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userMessage },
-      ],
-      max_completion_tokens: 4096,
-      stream: true,
-      stream_options: { include_usage: true },
-    }),
+    headers,
+    body: JSON.stringify(bodyPayload),
   });
 
   if (!response.ok) {
     if (response.status === 429) throw new Error("Rate limit exceeded. Please try again.");
     if (response.status === 401) throw new Error("Invalid API key.");
-    throw new Error(`Azure OpenAI error: ${response.status}`);
+    throw new Error(`AI error (${deployment}): ${response.status}`);
   }
 
   let fullContent = "";
@@ -569,7 +647,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       const p = MODEL_PRICING[m] || [0.15, 0.60];
       pricing[m] = { input: p[0], output: p[1] };
     }
-    res.json({ models, default: AZURE_DEPLOYMENT, pricing });
+    res.json({ models, default: DEFAULT_MODEL, pricing });
   });
 
   app.post("/api/ai-agent", async (req, res) => {
