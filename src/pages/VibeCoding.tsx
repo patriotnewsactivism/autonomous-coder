@@ -351,7 +351,105 @@ const VibeCoding = () => {
       addMessage(currentAgent || "orchestrator", "error", error instanceof Error ? error.message : "An error occurred");
       toast.error("Agent pipeline encountered an error");
     } finally {
-      setIsRunning(false);
+      
+      // ── OBSERVATION LOOP: agent observes its own preview and self-corrects ──
+      const MAX_OBSERVE_LOOPS = 3;
+      let observeLoop = 0;
+      // Give iframe a moment to render before we check errors
+      await new Promise(r => setTimeout(r, 1500));
+
+      while (observeLoop < MAX_OBSERVE_LOOPS && !stopRef.current) {
+        // Read preview errors captured by useSandbox's iframe message listener
+        // We access the current state via a ref-like snapshot — use a small delay
+        // to let React state settle after the last injectFiles call
+        await new Promise(r => setTimeout(r, 800));
+
+        // snapshot current errors via a captured ref — we use a closure trick
+        const currentErrors = sandbox.state.previewErrors;
+
+        if (currentErrors.length === 0) {
+          sandbox.addLog(`👁️ Preview looks clean — no errors detected (loop ${observeLoop + 1})`);
+          break;
+        }
+
+        observeLoop++;
+        sandbox.startObserving();
+        sandbox.addLog(`👁️ Observed ${currentErrors.length} preview error(s) — running self-correction loop ${observeLoop}/${MAX_OBSERVE_LOOPS}`);
+
+        // Clear errors before fixer runs so next loop sees fresh errors
+        sandbox.clearPreviewErrors();
+        sandbox.startCorrecting();
+
+        // Run fixer with the observed errors as explicit context
+        setCurrentAgent("fixer");
+        addMessage("fixer", "thinking", `Observing preview errors and self-correcting (loop ${observeLoop})…`);
+        const onObserveFixToken = addStreamingMessage("fixer");
+
+        try {
+          const observeFix = await runFixer(
+            allFiles,
+            {
+              issues: currentErrors.map((e, i) => ({
+                id: `preview-error-${i}`,
+                severity: "critical" as const,
+                type: "bug" as const,
+                file: "preview",
+                message: e,
+                suggestion: "Fix this runtime error so the preview renders correctly",
+              })),
+              overallScore: 0,
+              strengths: [],
+              summary: `${currentErrors.length} runtime errors observed in live preview`,
+            },
+            onObserveFixToken
+          );
+          tick();
+
+          if (observeFix.fixes?.length > 0 || observeFix.additionalImprovements?.length > 0) {
+            // Apply fixes to allFiles
+            const fixedPaths = new Set([
+              ...observeFix.fixes.map((f: any) => f.file),
+              ...observeFix.additionalImprovements.map((f: any) => f.file),
+            ]);
+
+            observeFix.fixes.forEach((fix: any) => {
+              const existing = allFiles.findIndex(f => f.path === fix.file);
+              if (existing !== -1 && fix.fixedCode) {
+                allFiles[existing] = { ...allFiles[existing], content: fix.fixedCode };
+              }
+            });
+
+            observeFix.additionalImprovements.forEach((imp: any) => {
+              const existing = allFiles.findIndex(f => f.path === imp.file);
+              if (existing !== -1 && imp.code) {
+                allFiles[existing] = { ...allFiles[existing], content: imp.code };
+              }
+            });
+
+            const patchedFiles = allFiles.filter(f => fixedPaths.has(f.path));
+            setGeneratedFiles([...allFiles]);
+            sandbox.injectFiles(patchedFiles);
+            sandbox.addLog(`🔧 Self-correction loop ${observeLoop}: patched ${patchedFiles.length} file(s)`);
+            finalizeStreamingMessage("fixer", `Loop ${observeLoop}: fixed ${observeFix.fixes.length} error(s) observed in preview`);
+          } else {
+            finalizeStreamingMessage("fixer", `Loop ${observeLoop}: no fixable changes needed`);
+            break;
+          }
+        } catch {
+          addMessage("fixer", "error", `Observation loop ${observeLoop} failed — stopping`);
+          break;
+        }
+
+        // Wait for preview to re-render before checking again
+        await new Promise(r => setTimeout(r, 2000));
+      }
+
+      if (observeLoop >= MAX_OBSERVE_LOOPS) {
+        sandbox.addLog(`👁️ Max observation loops (${MAX_OBSERVE_LOOPS}) reached`);
+      }
+      sandbox.addLog("🏁 Agent has finished observing and correcting its own work");
+
+setIsRunning(false);
       sandbox.setBuilding(false);
       setCurrentAgent(undefined);
       setCurrentTaskId(undefined);
