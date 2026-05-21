@@ -664,6 +664,8 @@ setIsRunning(false);
                 activeAgents={sandbox.state.activeAgents}
                 completedAgents={sandbox.state.completedAgents}
                 error={sandbox.state.error}
+                previewErrors={sandbox.state.previewErrors}
+                observationCount={sandbox.state.observationCount}
                 className="h-full"
               />
                 </div>
