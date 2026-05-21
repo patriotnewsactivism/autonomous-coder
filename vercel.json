@@ -6,7 +6,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://autonomous-coder.onrender.com/api/:path*"
+      "destination": "https://autonomous-coder-api.onrender.com/api/:path*"
     }
   ]
 }
