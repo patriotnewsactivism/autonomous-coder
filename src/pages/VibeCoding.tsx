@@ -197,6 +197,7 @@ const VibeCoding = () => {
     try {
       // STEP 1: Orchestrator
       setCurrentAgent("orchestrator");
+      sandbox.addLog(`🤖 [orchestrator] analyzing goal…`);
       addMessage("orchestrator", "thinking", "Analyzing your goal and building the optimal agent pipeline...");
       const onOrchestratorToken = addStreamingMessage("orchestrator");
 
@@ -223,10 +224,12 @@ const VibeCoding = () => {
       setAgentSequence(pipeline);
       finalizeStreamingMessage("orchestrator", orchestration.understanding);
       setCompletedAgents(["orchestrator"]);
+      sandbox.addLog(`✅ [orchestrator] done — pipeline: ${orchestration.agentSequence.join(" → ")}`);
 
       // STEP 2: Strategist
       if (orchestration.agentSequence.includes("strategist")) {
         setCurrentAgent("strategist");
+      sandbox.addLog(`🤖 [strategist] planning architecture…`);
         addMessage("strategist", "thinking", "Creating architecture and task breakdown...");
         const onToken = addStreamingMessage("strategist");
         const strategy = await runStrategist(goal, undefined, onToken);
@@ -247,7 +250,7 @@ const VibeCoding = () => {
           try {
             const result = await runSpecialist(specialistType, `${specialistType} for: ${goal}`, { tasks: strategy.tasks, existingFiles: allFiles, techStack: strategy.techStack }, onSpecToken);
             tick();
-            if (result.files) { allFiles.push(...result.files); setGeneratedFiles([...allFiles]); }
+            if (result.files) { allFiles.push(...result.files); setGeneratedFiles([...allFiles]); sandbox.injectFiles(result.files); sandbox.addLog(`📁 [${specialistType}] wrote ${result.files.length} file(s)`); }
             finalizeStreamingMessage(specialistType, result.summary || result.explanation || `${specialistType} complete`);
           } catch { addMessage(specialistType, "error", `${specialistType} agent failed — continuing`, { retryable: false }); }
           setCompletedAgents((prev) => [...prev, specialistType]);
@@ -255,6 +258,7 @@ const VibeCoding = () => {
 
         // STEP 3: Builder
         setCurrentAgent("builder");
+      sandbox.addLog(`🤖 [builder] generating code…`);
         for (let i = 0; i < strategy.tasks.length; i++) {
           if (stopRef.current) return;
           const task = strategy.tasks[i];
@@ -265,7 +269,7 @@ const VibeCoding = () => {
           try {
             const buildResult = await runBuilder(task, { existingFiles: allFiles, techStack: strategy.techStack, goal }, onBuildToken);
             tick();
-            if (buildResult.files) { allFiles.push(...buildResult.files); setGeneratedFiles([...allFiles]); }
+            if (buildResult.files) { allFiles.push(...buildResult.files); setGeneratedFiles([...allFiles]); sandbox.injectFiles(buildResult.files); sandbox.addLog(`🔨 [builder] ${task.title} — ${buildResult.files.length} file(s) written`); }
             setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status: "completed" as const } : t));
             finalizeStreamingMessage("builder", buildResult.explanation || `Done: ${task.title}`);
           } catch {
@@ -286,7 +290,7 @@ const VibeCoding = () => {
           try {
             const result = await runSpecialist(specialistType, `${specialistType} for: ${goal}`, { files: allFiles }, onToken);
             tick();
-            if (result.files) { allFiles.push(...result.files); setGeneratedFiles([...allFiles]); }
+            if (result.files) { allFiles.push(...result.files); setGeneratedFiles([...allFiles]); sandbox.injectFiles(result.files); sandbox.addLog(`📁 [${specialistType}] wrote ${result.files.length} file(s)`); }
             finalizeStreamingMessage(specialistType, result.summary || result.explanation || `${specialistType} complete`);
           } catch { addMessage(specialistType, "error", `${specialistType} agent failed — continuing`); }
           setCompletedAgents((prev) => [...prev, specialistType]);
@@ -295,6 +299,7 @@ const VibeCoding = () => {
         // STEP 4: Reviewer
         if (!stopRef.current && allFiles.length > 0 && orchestration.agentSequence.includes("reviewer")) {
           setCurrentAgent("reviewer");
+      sandbox.addLog(`🤖 [reviewer] reviewing quality…`);
           addMessage("reviewer", "thinking", `Reviewing ${allFiles.length} files for quality...`);
           const onRevToken = addStreamingMessage("reviewer");
           const review = await runReviewer(allFiles, onRevToken);
@@ -308,6 +313,7 @@ const VibeCoding = () => {
           // STEP 5: Fixer
           if (orchestration.agentSequence.includes("fixer")) {
             setCurrentAgent("fixer");
+      sandbox.addLog(`🤖 [fixer] fixing issues…`);
             if (review.issues && review.issues.length > 0) {
               addMessage("fixer", "thinking", `Fixing ${review.issues.length} issues...`);
               const onFixToken = addStreamingMessage("fixer");
