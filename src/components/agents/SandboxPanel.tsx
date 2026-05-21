@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { GeneratedFile, AgentType } from "@/lib/agents";
 import { WorkerEvent, WorkerStatus } from "@/lib/agentParallel";
-import { SandboxStatus } from "@/hooks/useSandbox";
+import { SandboxStatus, SandboxState } from "@/hooks/useSandbox";
 
 // ── Syntax highlighter (zero-dep) ─────────────────────────────────────────
 function highlight(code: string, ext: string): string {
@@ -176,22 +176,31 @@ try{
 </html>`;
 }
 
-// ── Status badge ──────────────────────────────────────────────────────────
-function StatusBadge({ status }: { status: SandboxStatus }) {
-  const config: Record<SandboxStatus, { label: string; color: string; pulse: boolean }> = {
-    idle:        { label: "Idle",        color: "text-slate-500", pulse: false },
-    connecting:  { label: "Connecting…", color: "text-amber-400", pulse: true },
-    building:    { label: "Building",    color: "text-cyan-400",  pulse: true },
-    evaluating:  { label: "Evaluating",  color: "text-purple-400",pulse: true },
-    retrying:    { label: "Retrying",    color: "text-amber-400", pulse: true },
-    done:        { label: "Live",        color: "text-emerald-400",pulse: false },
-    error:       { label: "Error",       color: "text-red-400",   pulse: false },
+
+// ── Status badge ──────────────────────────────────────────────
+function StatusBadge({ status, observationCount }: { status: SandboxStatus; observationCount?: number }) {
+  const config: Record<SandboxStatus, { label: string; color: string; pulse: boolean; icon?: string }> = {
+    idle:        { label: "Idle",           color: "text-slate-500",  pulse: false },
+    connecting:  { label: "Connecting…",    color: "text-amber-400",  pulse: true  },
+    building:    { label: "Building",       color: "text-cyan-400",   pulse: true  },
+    evaluating:  { label: "Evaluating",     color: "text-purple-400", pulse: true  },
+    retrying:    { label: "Retrying",       color: "text-amber-400",  pulse: true  },
+    observing:   { label: "Observing",      color: "text-blue-400",   pulse: true,  icon: "👁️" },
+    correcting:  { label: "Self-Correcting",color: "text-orange-400", pulse: true,  icon: "🔧" },
+    done:        { label: "Live",           color: "text-emerald-400",pulse: false, icon: "⚡" },
+    error:       { label: "Error",          color: "text-red-400",    pulse: false },
   };
-  const c = config[status];
+  const c = config[status] || config.idle;
   return (
     <span className={`flex items-center gap-1.5 text-[11px] font-medium ${c.color}`}>
-      <span className={`inline-block w-1.5 h-1.5 rounded-full bg-current ${c.pulse ? "animate-pulse" : ""}`} />
+      {c.icon
+        ? <span className="text-[11px]">{c.icon}</span>
+        : <span className={`inline-block w-1.5 h-1.5 rounded-full bg-current ${c.pulse ? "animate-pulse" : ""}`} />
+      }
       {c.label}
+      {observationCount !== undefined && observationCount > 0 && (
+        <span className="ml-0.5 text-[9px] opacity-60">(loop {observationCount})</span>
+      )}
     </span>
   );
 }
@@ -206,6 +215,8 @@ interface SandboxPanelProps {
   activeAgents: Set<AgentType>;
   completedAgents: AgentType[];
   error?: string | null;
+  previewErrors?: string[];
+  observationCount?: number;
   className?: string;
 }
 
@@ -220,7 +231,7 @@ const VIEWPORTS: Record<Viewport, { width: string; icon: any; label: string }> =
 
 export default function SandboxPanel({
   files, status, buildLog, workerEvents, agentScores,
-  activeAgents, completedAgents, error, className = ""
+  activeAgents, completedAgents, error, previewErrors = [], observationCount = 0, className = ""
 }: SandboxPanelProps) {
   const [tab, setTab] = useState<PanelTab>("preview");
   const [viewport, setViewport] = useState<Viewport>("desktop");
@@ -283,7 +294,7 @@ export default function SandboxPanel({
   };
 
   const tabs: Array<{ id: PanelTab; label: string; icon: any; badge?: number }> = [
-    { id: "preview", label: "Preview",   icon: Eye },
+    { id: "preview", label: "Preview",   icon: Eye, badge: previewErrors.length > 0 ? previewErrors.length : undefined },
     { id: "code",    label: "Code",      icon: FileCode,  badge: files.length || undefined },
     { id: "log",     label: "Build Log", icon: Terminal,  badge: buildLog.length || undefined },
     { id: "agents",  label: "Agents",    icon: Brain,     badge: completedAgents.length || undefined },
@@ -325,7 +336,7 @@ export default function SandboxPanel({
 
         {/* Status + controls */}
         <div className="flex items-center gap-2">
-          <StatusBadge status={status} />
+          <StatusBadge status={status} observationCount={observationCount} />
           {tab === "preview" && (
             <button onClick={() => { setPreviewReady(false); setPreviewError(null); setRefreshKey(k => k+1); }}
               className="p-1 rounded text-slate-600 hover:text-slate-300 transition-colors" title="Refresh">
