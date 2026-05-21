@@ -20,6 +20,9 @@ import {
 } from "@/lib/agents";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
+import { useSandbox } from "@/hooks/useSandbox";
+import SandboxPanel from "@/components/agents/SandboxPanel";
+
 
 interface ProjectHistory {
   id: number;
@@ -30,6 +33,10 @@ interface ProjectHistory {
 
 const VibeCoding = () => {
   const qc = useQueryClient();
+
+  // ── Live sandbox (SSE + incremental file preview) ────────────────────────
+  const sandbox = useSandbox();
+
   const [isRunning, setIsRunning] = useState(false);
   const [currentAgent, setCurrentAgent] = useState<AgentType | undefined>();
   const [completedAgents, setCompletedAgents] = useState<AgentType[]>([]);
@@ -167,6 +174,9 @@ const VibeCoding = () => {
   // ── Main pipeline ─────────────────────────────────────────────────────────
   const runAutonomousAgents = useCallback(async (rawGoal: string, mode: BuildMode = "vibe", pt?: ProjectType) => {
     setIsRunning(true);
+    sandbox.setBuilding(true);
+    sandbox.reset();
+    sandbox.addLog("⚡ Build started");
     setBuildMode(mode);
     if (pt) setProjectType(pt);
     stopRef.current = false;
@@ -336,6 +346,7 @@ const VibeCoding = () => {
       toast.error("Agent pipeline encountered an error");
     } finally {
       setIsRunning(false);
+      sandbox.setBuilding(false);
       setCurrentAgent(undefined);
       setCurrentTaskId(undefined);
     }
@@ -540,7 +551,17 @@ const VibeCoding = () => {
                       </button>
                     )}
                   </div>
-                  <CodeWorkspace files={generatedFiles} onFilesUpdated={setGeneratedFiles} />
+                  <SandboxPanel
+                files={sandbox.state.files.length > 0 ? sandbox.state.files : generatedFiles}
+                status={sandbox.state.status}
+                buildLog={sandbox.state.buildLog}
+                workerEvents={sandbox.state.workerEvents}
+                agentScores={sandbox.state.agentScores}
+                activeAgents={sandbox.state.activeAgents}
+                completedAgents={sandbox.state.completedAgents}
+                error={sandbox.state.error}
+                className="h-full"
+              />
                 </div>
 
                 <ChatIteration files={generatedFiles} onFilesUpdated={setGeneratedFiles} isAgentRunning={isRunning} />
