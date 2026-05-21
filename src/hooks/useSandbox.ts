@@ -9,6 +9,8 @@ export type SandboxStatus =
   | "building"
   | "evaluating"
   | "retrying"
+  | "observing"   // NEW: agent is reading preview errors
+  | "correcting"  // NEW: agent is fixing based on what it observed
   | "done"
   | "error";
 
@@ -20,6 +22,8 @@ export interface SandboxState {
   activeAgents: Set<AgentType>;
   completedAgents: AgentType[];
   agentScores: Record<string, number>;
+  previewErrors: string[];       // NEW: errors caught from iframe
+  observationCount: number;       // NEW: how many self-correction loops ran
   error: string | null;
   sessionId: string | null;
   totalAgents: number;
@@ -34,6 +38,8 @@ const initialState: SandboxState = {
   activeAgents: new Set(),
   completedAgents: [],
   agentScores: {},
+  previewErrors: [],
+  observationCount: 0,
   error: null,
   sessionId: null,
   totalAgents: 0,
@@ -49,9 +55,31 @@ export function useSandbox() {
     setState(s => ({ ...s, buildLog: [...s.buildLog, line] }));
   }, []);
 
-  // Connect to SSE stream for a given session
+  // ── Iframe message listener (preview errors + ready) ──────────────────────
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === "preview:error") {
+        const err = String(e.data.error || "Unknown preview error");
+        setState(s => ({
+          ...s,
+          previewErrors: [...s.previewErrors, err],
+        }));
+        log(`⚠️ Preview error: ${err.slice(0, 120)}`);
+      }
+      if (e.data?.type === "preview:ready") {
+        setState(s => ({
+          ...s,
+          previewErrors: s.previewErrors, // keep for observation loop
+        }));
+        log("👁️ Preview rendered successfully");
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [log]);
+
+  // ── SSE stream connection ─────────────────────────────────────────────────
   const connectStream = useCallback((sessionId: string) => {
-    // Close any existing connection
     esRef.current?.close();
     sessionIdRef.current = sessionId;
 
@@ -64,17 +92,13 @@ export function useSandbox() {
 
     es.onopen = () => {
       setState(s => ({ ...s, status: "building" }));
-      log("⚡ Stream connected — agents are initializing");
+      log("⚡ Stream connected — agents initializing");
     };
 
     es.onerror = () => {
-      // SSE auto-reconnects, only log if session was active
-      if (sessionIdRef.current === sessionId) {
-        log("🔄 Stream reconnecting…");
-      }
+      if (sessionIdRef.current === sessionId) log("🔄 Stream reconnecting…");
     };
 
-    // ── Worker lifecycle events ──────────────────────────────────────────────
     es.addEventListener("worker:status", (e: MessageEvent) => {
       const ev: WorkerEvent = JSON.parse(e.data);
       if (ev.status === "running" && ev.agent) {
@@ -96,19 +120,19 @@ export function useSandbox() {
     es.addEventListener("worker:eval", (e: MessageEvent) => {
       const ev: WorkerEvent = JSON.parse(e.data);
       setState(s => ({
-        ...s,
-        status: "evaluating",
+        ...s, status: "evaluating",
         workerEvents: [...s.workerEvents, ev],
         agentScores: { ...s.agentScores, [ev.agent || ""]: ev.score || 0 },
       }));
-      const bar = "█".repeat(Math.round((ev.score || 0))) + "░".repeat(10 - Math.round((ev.score || 0)));
-      log(`📊 [${ev.agent}] self-eval: ${bar} ${ev.score}/10 — ${ev.reason || ""}`);
+      const filled = Math.round(ev.score || 0);
+      const bar = "█".repeat(filled) + "░".repeat(10 - filled);
+      log(`📊 [${ev.agent}] self-eval: ${bar} ${ev.score}/10`);
     });
 
     es.addEventListener("worker:retrying", (e: MessageEvent) => {
       const ev: WorkerEvent = JSON.parse(e.data);
       setState(s => ({ ...s, status: "retrying", workerEvents: [...s.workerEvents, ev] }));
-      log(`🔄 [${ev.agent}] score too low — retrying (attempt ${ev.attempt}): ${ev.reason || ""}`);
+      log(`🔄 [${ev.agent}] retrying (attempt ${ev.attempt}): ${ev.reason || ""}`);
     });
 
     es.addEventListener("worker:done", (e: MessageEvent) => {
@@ -143,14 +167,13 @@ export function useSandbox() {
     es.addEventListener("parallel:start", (e: MessageEvent) => {
       const ev: WorkerEvent = JSON.parse(e.data);
       setState(s => ({ ...s, status: "building", workerEvents: [...s.workerEvents, ev] }));
-      log(`⚡ Parallel build started`);
+      log("⚡ Parallel build started");
     });
 
     es.addEventListener("parallel:done", (e: MessageEvent) => {
       const ev: WorkerEvent = JSON.parse(e.data);
       setState(s => ({
-        ...s,
-        status: "done",
+        ...s, status: "done",
         totalAgents: ev.totalAgents || 0,
         avgScore: ev.avgScore || 0,
         workerEvents: [...s.workerEvents, ev],
@@ -158,43 +181,56 @@ export function useSandbox() {
       log(`🏁 All ${ev.totalAgents} agents complete — avg score: ${ev.avgScore?.toFixed(1)}/10`);
     });
 
-    // ── Sandbox file update event (backend emits this when builder writes files) ──
     es.addEventListener("sandbox:update", (e: MessageEvent) => {
       const { files }: { files: GeneratedFile[] } = JSON.parse(e.data);
       if (files?.length) {
         setState(s => {
-          // Merge: update existing paths, append new ones
           const map = new Map(s.files.map(f => [f.path, f]));
           files.forEach(f => map.set(f.path, f));
-          const merged = Array.from(map.values());
-          return { ...s, files: merged };
+          return { ...s, files: Array.from(map.values()) };
         });
         log(`📁 Preview updated: ${files.map(f => f.path.split("/").pop()).join(", ")}`);
       }
     });
 
-    return () => {
-      es.close();
-      esRef.current = null;
-    };
+    return () => { es.close(); esRef.current = null; };
   }, [log]);
 
-  // Inject files directly (for non-SSE builds using the existing agent pipeline)
+  // ── Inject files directly (non-SSE pipeline) ─────────────────────────────
   const injectFiles = useCallback((files: GeneratedFile[], append = true) => {
+    if (!files?.length) return;
     setState(s => {
       if (!append) return { ...s, files };
       const map = new Map(s.files.map(f => [f.path, f]));
       files.forEach(f => map.set(f.path, f));
       return { ...s, files: Array.from(map.values()) };
     });
-    if (files.length > 0) {
-      log(`📁 Files loaded: ${files.map(f => f.path.split("/").pop()).join(", ")}`);
-    }
+  }, []);
+
+  // ── Clear preview errors (call before observation loop check) ─────────────
+  const clearPreviewErrors = useCallback(() => {
+    setState(s => ({ ...s, previewErrors: [] }));
+  }, []);
+
+  // ── Mark observation loop start/end ──────────────────────────────────────
+  const startObserving = useCallback(() => {
+    setState(s => ({
+      ...s,
+      status: "observing",
+      observationCount: s.observationCount + 1,
+    }));
+    log(`👁️ Agent observing preview output (loop ${state.observationCount + 1})…`);
+  }, [log, state.observationCount]);
+
+  const startCorrecting = useCallback(() => {
+    setState(s => ({ ...s, status: "correcting" }));
+    log("🔧 Agent self-correcting based on preview errors…");
   }, [log]);
 
   const setBuilding = useCallback((building: boolean) => {
     setState(s => ({ ...s, status: building ? "building" : "done" }));
     if (building) log("⚡ Build started");
+    else log("🏁 Build complete");
   }, [log]);
 
   const reset = useCallback(() => {
@@ -206,10 +242,17 @@ export function useSandbox() {
 
   const addLog = useCallback((line: string) => log(line), [log]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => { esRef.current?.close(); };
-  }, []);
+  useEffect(() => () => { esRef.current?.close(); }, []);
 
-  return { state, connectStream, injectFiles, setBuilding, reset, addLog };
+  return {
+    state,
+    connectStream,
+    injectFiles,
+    clearPreviewErrors,
+    startObserving,
+    startCorrecting,
+    setBuilding,
+    reset,
+    addLog,
+  };
 }
