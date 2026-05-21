@@ -7,6 +7,48 @@ import { getSessionMemory, storeMemory } from "./agentMemory";
 // Stream SSE events to client
 function sendSSE(res: any, event: string, data: any) {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  // ── POST: Universal AI Employee task endpoint ─────────────────────────────
+  // Routes ANY task — simple or complex — to the right execution strategy
+  app.post("/api/employee/task", async (req, res) => {
+    try {
+      const { goal, model, sessionId } = req.body;
+      if (!goal) return res.status(400).json({ error: "goal required" });
+
+      const { executeTask } = await import("./employeeAgent");
+      const sid = sessionId || randomUUID();
+
+      // Stream progress events back via SSE bus
+      const result = await executeTask(goal, {
+        model,
+        sessionId: sid,
+        onProgress: (msg) => {
+          workerBus.emit("employee:progress", { sessionId: sid, message: msg });
+        },
+        onClassified: (classification) => {
+          workerBus.emit("employee:classified", { sessionId: sid, classification });
+        },
+      });
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "employee task failed" });
+    }
+  });
+
+  // ── GET: Classify a task without executing it ─────────────────────────────
+  app.get("/api/employee/classify", async (req, res) => {
+    try {
+      const { goal, model } = req.query as Record<string, string>;
+      if (!goal) return res.status(400).json({ error: "goal required" });
+      const { classifyTask } = await import("./employeeAgent");
+      const classification = await classifyTask(goal, model);
+      res.json(classification);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message });
+    }
+  });
+
+
 }
 
 export function registerParallelRoutes(app: Express) {
@@ -24,7 +66,9 @@ export function registerParallelRoutes(app: Express) {
       "worker:status", "worker:thinking", "worker:eval",
       "worker:done", "worker:failed", "worker:retrying",
       "worker:spawned", "parallel:start", "parallel:done",
-      "memory:stored", "sandbox:update"
+      "memory:stored", "sandbox:update",
+      "employee:progress", "employee:classified", "employee:classifying",
+      "employee:epic:start", "employee:epic:done", "employee:done", "employee:progress", "employee:classified", "employee:classifying", "employee:epic:start", "employee:epic:done", "employee:done"
     ];
 
     const handlers: Record<string, (data: any) => void> = {};
