@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import { registerRoutes } from "./routes";
+import { registerParallelRoutes } from "./parallelRoutes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
@@ -40,6 +41,7 @@ app.use((req, res, next) => {
 
 (async () => {
   await registerRoutes(app);
+  registerParallelRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
