@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import VibeCoding from "./pages/VibeCoding";
+import EmployeeMode from "./pages/EmployeeMode";
 import SharedProject from "./pages/SharedProject";
 import NotFound from "./pages/NotFound";
 
@@ -19,6 +20,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/vibe" element={<VibeCoding />} />
+          <Route path="/employee" element={<EmployeeMode />} />
           <Route path="/project/:id" element={<SharedProject />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
