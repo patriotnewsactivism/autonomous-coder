@@ -32,7 +32,7 @@ const systemPromptAnalyze = `You are an expert code analyzer and fixer. Analyze 
 }
 IMPORTANT: Return ONLY valid JSON, no markdown.`;
 
-const systemPrompts: Record<string, string> = {
+export const systemPrompts: Record<string, string> = {
   orchestrator: `You are the MASTER ORCHESTRATOR — the highest-intelligence agent in the system.
 
 You operate with FULL AUTONOMY. You never ask clarifying questions. You decide everything.
@@ -482,7 +482,7 @@ function calcCost(model: string, promptTokens: number, completionTokens: number)
   return (promptTokens / 1_000_000) * pricing[0] + (completionTokens / 1_000_000) * pricing[1];
 }
 
-async function callAI(
+export async function callAI(
   systemPrompt: string,
   userMessage: string,
   model?: string
@@ -541,7 +541,7 @@ async function callAI(
   return { content, tokens, promptTokens, completionTokens, model: deployment, costUsd: calcCost(deployment, promptTokens, completionTokens) };
 }
 
-async function callAIStream(
+export async function callAIStream(
   systemPrompt: string,
   userMessage: string,
   onToken: (token: string) => void,
@@ -619,7 +619,7 @@ async function callAIStream(
   return { content: fullContent, tokens, promptTokens, completionTokens, model: deployment, costUsd: calcCost(deployment, promptTokens, completionTokens) };
 }
 
-function parseJsonResponse(content: string): any {
+export function parseJsonResponse(content: string): any {
   let c = content.trim();
   if (c.startsWith("```json")) c = c.slice(7);
   else if (c.startsWith("```")) c = c.slice(3);
