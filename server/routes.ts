@@ -401,8 +401,21 @@ const GROK_API_KEY = process.env.GROK_API_KEY || "";
 const GROK_MODEL = process.env.GROK_MODEL || "grok-4-1-fast-reasoning";
 const USE_GROK = Boolean(GROK_API_KEY);
 
+// Only enable Azure OpenAI if user explicitly sets a deployment name
+const USE_AZURE_OPENAI = Boolean(process.env.AZURE_OPENAI_DEPLOYMENT && process.env.AZURE_OPENAI_API_KEY);
+
 // Default model: DeepSeek (cheapest) > Grok > Azure OpenAI
 const DEFAULT_MODEL = USE_DEEPSEEK ? DEEPSEEK_MODEL : (USE_GROK ? GROK_MODEL : AZURE_DEPLOYMENT);
+
+// Smart fallback chain — tries next available provider instead of always Azure
+function getFallbackModel(currentModel: string): string | null {
+  const chain: string[] = [];
+  if (USE_DEEPSEEK) chain.push(DEEPSEEK_MODEL);
+  if (USE_GROK) chain.push(GROK_MODEL);
+  if (USE_AZURE_OPENAI) chain.push(AZURE_DEPLOYMENT);
+  const idx = chain.indexOf(currentModel);
+  return (idx >= 0 && idx < chain.length - 1) ? chain[idx + 1] : null;
+}
 
 // Model pricing per 1M tokens [input, output] in USD
 const MODEL_PRICING: Record<string, [number, number]> = {
@@ -450,16 +463,18 @@ function getModelEndpoint(model: string): { url: string; headers: Record<string,
   }
 }
 
-// Available models (all configured providers)
+// Available models (only list providers that are actually configured)
 function getAvailableModels(): string[] {
   const models: string[] = [];
   if (USE_DEEPSEEK) models.push(DEEPSEEK_MODEL);
   if (USE_GROK) models.push(GROK_MODEL);
-  // Azure OpenAI deployments
-  const extra = process.env.AZURE_OPENAI_MODELS || "";
-  const azureModels = extra.split(",").map(s => s.trim()).filter(Boolean);
-  if (!azureModels.includes(AZURE_DEPLOYMENT)) azureModels.unshift(AZURE_DEPLOYMENT);
-  models.push(...azureModels);
+  // Only include Azure OpenAI models if explicitly configured
+  if (USE_AZURE_OPENAI) {
+    const extra = process.env.AZURE_OPENAI_MODELS || "";
+    const azureModels = extra.split(",").map(s => s.trim()).filter(Boolean);
+    if (!azureModels.includes(AZURE_DEPLOYMENT)) azureModels.unshift(AZURE_DEPLOYMENT);
+    models.push(...azureModels);
+  }
   return models;
 }
 
@@ -515,10 +530,11 @@ export async function callAI(
 
   if (!response.ok) {
     const errorText = await response.text();
-    // Try fallback: if primary model fails, try next available
-    if (deployment !== AZURE_DEPLOYMENT && process.env.AZURE_OPENAI_API_KEY) {
-      console.log(`[callAI] ${deployment} failed (${response.status}), falling back to ${AZURE_DEPLOYMENT}`);
-      return callAI(systemPrompt, userMessage, AZURE_DEPLOYMENT);
+    // Try next model in the fallback chain
+    const fallback = getFallbackModel(deployment);
+    if (fallback) {
+      console.log(`[callAI] ${deployment} failed (${response.status}), falling back to ${fallback}`);
+      return callAI(systemPrompt, userMessage, fallback);
     }
     if (response.status === 429) throw new Error("Rate limit exceeded. Please try again.");
     if (response.status === 401) throw new Error("Invalid API key.");
@@ -532,9 +548,10 @@ export async function callAI(
   const tokens = aiResponse.usage?.total_tokens || 0;
   if (!content) {
     // Fallback on empty response
-    if (deployment !== AZURE_DEPLOYMENT && process.env.AZURE_OPENAI_API_KEY) {
-      console.log(`[callAI] ${deployment} returned empty, falling back to ${AZURE_DEPLOYMENT}`);
-      return callAI(systemPrompt, userMessage, AZURE_DEPLOYMENT);
+    const fallback = getFallbackModel(deployment);
+    if (fallback) {
+      console.log(`[callAI] ${deployment} returned empty, falling back to ${fallback}`);
+      return callAI(systemPrompt, userMessage, fallback);
     }
     throw new Error("No response from AI");
   }
@@ -574,6 +591,12 @@ export async function callAIStream(
   });
 
   if (!response.ok) {
+    // Try next model in the fallback chain
+    const fallback = getFallbackModel(deployment);
+    if (fallback) {
+      console.log(`[callAIStream] ${deployment} failed (${response.status}), falling back to ${fallback}`);
+      return callAIStream(systemPrompt, userMessage, onToken, fallback);
+    }
     if (response.status === 429) throw new Error("Rate limit exceeded. Please try again.");
     if (response.status === 401) throw new Error("Invalid API key.");
     throw new Error(`AI error (${deployment}): ${response.status}`);
@@ -1065,3 +1088,4 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
 }
+
