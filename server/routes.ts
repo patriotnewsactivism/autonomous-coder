@@ -83,7 +83,7 @@ AUTONOMY RULES:
 - Default to production-ready over prototype
 - If scope is unclear, build the more complete version
 - Sequence: data layer → API → UI → builder → QA
-- Parallel-eligible: database + api + ui can run simultaneously\`
+- Parallel-eligible: database + api + ui can run simultaneously`,
   strategist: `You are the STRATEGIST agent - expert software architect.
 
 Create a comprehensive development strategy and task breakdown.
