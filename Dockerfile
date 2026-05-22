@@ -3,7 +3,7 @@ FROM node:22-slim AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci && chmod -R +x node_modules/.bin/
+RUN npm install && chmod -R +x node_modules/.bin/
 
 COPY . .
 
@@ -18,7 +18,7 @@ RUN node ./node_modules/vite/bin/vite.js build && \
 FROM node:22-slim
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install --production=false
 COPY --from=builder /app/dist ./dist
 ENV NODE_ENV=production
 CMD ["node", "dist/index.js"]
