@@ -390,9 +390,9 @@ const AZURE_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-5-mini";
 const AZURE_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || "2024-02-01";
 
 // ── DeepSeek V3.2 via Azure AI Foundry ─────────────────────────────────────
-const DEEPSEEK_ENDPOINT = process.env.DEEPSEEK_ENDPOINT || "https://patri-moar8a1w-eastus2.services.ai.azure.com/models/chat/completions?api-version=2024-05-01-preview";
+const DEEPSEEK_ENDPOINT = process.env.DEEPSEEK_ENDPOINT || "https://patri-mojrzk25-swedencentral.services.ai.azure.com/models/chat/completions?api-version=2024-05-01-preview";
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || "";
-const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "DeepSeek-V3-2";
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "DeepSeek-V3.2";
 const USE_DEEPSEEK = Boolean(DEEPSEEK_API_KEY);
 
 // ── Grok 4.1 Fast Reasoning via Azure AI Foundry ──────────────────────────
@@ -419,7 +419,7 @@ function getFallbackModel(currentModel: string): string | null {
 
 // Model pricing per 1M tokens [input, output] in USD
 const MODEL_PRICING: Record<string, [number, number]> = {
-  "DeepSeek-V3-2": [0.28, 0.42],
+  "DeepSeek-V3.2": [0.28, 0.42],
   "grok-4-1-fast-reasoning": [0.20, 0.50],
   "gpt-5-mini": [0.25, 2.00],
   "gpt-4o": [2.50, 10.00],
@@ -1088,4 +1088,5 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
 }
+
 
