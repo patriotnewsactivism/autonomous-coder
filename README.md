@@ -23,8 +23,8 @@ AI-powered multi-agent coding platform with 13 specialized agents for autonomous
 ## Stack
 
 - **Frontend**: React + Vite + TailwindCSS + shadcn/ui
-- **Backend**: Express.js + Drizzle ORM + PostgreSQL
-- **AI**: Azure OpenAI (gpt-5-mini)
+- **Backend**: Express.js + Drizzle ORM + PostgreSQL (Supabase)
+- **AI**: DeepSeek (primary) + Groq (fallback) — both OpenAI-compatible
 - **Features**: Streaming responses, code workspace, live preview, GitHub integration, project history, token tracking
 
 ## Setup
@@ -36,12 +36,24 @@ npm install
 Create a `.env` file:
 
 ```env
-AZURE_OPENAI_API_KEY=your_azure_openai_key
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
-AZURE_OPENAI_DEPLOYMENT=gpt-5-mini
-AZURE_OPENAI_API_VERSION=2024-02-01
-DATABASE_URL=postgresql://...
+# AI Providers
+DEEPSEEK_API_KEY=your_deepseek_api_key
+DEEPSEEK_MODEL=deepseek-chat
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=llama-3.3-70b-versatile
+
+# Database
+DATABASE_URL=postgresql://user:password@host:5432/dbname
+
+# Supabase
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+VITE_SUPABASE_PROJECT_ID=your_project_id
+VITE_SUPABASE_PUBLISHABLE_KEY=your_anon_key
+VITE_SUPABASE_URL=https://your-project.supabase.co
 ```
+
+Run the SQL migrations in `supabase/migrations/` against your database to create the required tables.
 
 ## Development
 
