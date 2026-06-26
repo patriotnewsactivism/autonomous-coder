@@ -1,24 +1,24 @@
-FROM node:22-slim AS builder
+FROM node:22-slim
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm install && chmod -R +x node_modules/.bin/
+# Copy package files
+COPY package*.json ./
 
+# Install ALL dependencies (including dev for build)
+RUN npm ci --include=dev
+
+# Copy source
 COPY . .
 
-RUN node ./node_modules/vite/bin/vite.js build && \
-    node ./node_modules/esbuild/bin/esbuild server/index.ts \
-      --platform=node \
-      --packages=external \
-      --bundle \
-      --format=esm \
-      --outfile=dist/index.js
+# Build frontend + backend
+RUN npm run build
 
-FROM node:22-slim
-WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm install --production=false
-COPY --from=builder /app/dist ./dist
-ENV NODE_ENV=production
-CMD ["node", "dist/index.js"]
+# Prune dev dependencies after build
+RUN npm prune --production
+
+# Expose port
+EXPOSE 5000
+
+# Start
+CMD ["npm", "start"]
