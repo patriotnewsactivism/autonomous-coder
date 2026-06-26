@@ -1338,8 +1338,7 @@ async function executeSimple(goal, classification, model, onToken) {
   const { content } = await callAI(
     promptMap[classification.category] || GENERALIST_PROMPT,
     goal,
-    model,
-    onToken
+    model
   );
   return { output: content, type: "answer" };
 }
@@ -1391,7 +1390,8 @@ async function executeComplex(goal, classification, sessionId, model) {
     results.push(r);
     if (r.output) ctx = { ...ctx, [`${job.agent}Output`]: r.output };
   }
-  const avgScore = results.reduce((s, r) => s + (r.score || 0), 0) / (results.length || 1);
+  const scoredResults = results;
+  const avgScore = scoredResults.reduce((s, r) => s + (r.score || 0), 0) / (scoredResults.length || 1);
   return {
     jobs: results,
     summary: `Completed ${results.length} agents | avg score: ${avgScore.toFixed(1)}/10`
@@ -1426,10 +1426,11 @@ async function executeEpic(goal, classification, sessionId, model) {
     const fixResults = await spawnSubWorkers(parentJob, fixJobs);
     allResults.push(...fixResults);
   }
+  const scoredAllResults = allResults;
   workerBus.emit("employee:epic:done", {
     sessionId,
     totalJobs: allResults.length,
-    avgScore: allResults.reduce((s, r) => s + (r.score || 0), 0) / (allResults.length || 1)
+    avgScore: scoredAllResults.reduce((s, r) => s + (r.score || 0), 0) / (scoredAllResults.length || 1)
   });
   return {
     results: allResults,

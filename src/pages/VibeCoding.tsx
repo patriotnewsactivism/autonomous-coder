@@ -179,6 +179,10 @@ const VibeCoding = () => {
     sandbox.setBuilding(true);
     sandbox.reset();
     sandbox.addLog("⚡ Build started");
+    if (seedFilesRef.current.length > 0) {
+      sandbox.injectFiles(seedFilesRef.current);
+      sandbox.addLog(`🌱 Seeded build with ${seedFilesRef.current.length} imported file(s)`);
+    }
     setBuildMode(mode);
     if (pt) setProjectType(pt);
     stopRef.current = false;

@@ -1,0 +1,1 @@
+{"root":["./vite.config.ts","./server/agentmemory.ts","./server/agentworker.ts","./server/employeeagent.ts","./server/index.ts","./server/parallelroutes.ts","./server/routes.ts","./server/storage.ts","./server/superagent.ts","./server/vite.ts","./shared/schema.ts"],"errors":true,"version":"5.8.3"}

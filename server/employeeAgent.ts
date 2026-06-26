@@ -147,8 +147,7 @@ async function executeSimple(
   const { content } = await callAI(
     promptMap[classification.category] || GENERALIST_PROMPT,
     goal,
-    model,
-    onToken
+    model
   );
   return { output: content, type: "answer" };
 }
@@ -215,7 +214,8 @@ async function executeComplex(
     if (r.output) ctx = { ...ctx, [`${job.agent}Output`]: r.output };
   }
 
-  const avgScore = results.reduce((s, r) => s + ((r as { score?: number }).score || 0), 0) / (results.length || 1);
+  const scoredResults = results as Array<{ score?: number }>;
+  const avgScore = scoredResults.reduce((s, r) => s + (r.score || 0), 0) / (scoredResults.length || 1);
   return {
     jobs: results,
     summary: `Completed ${results.length} agents | avg score: ${avgScore.toFixed(1)}/10`,
@@ -266,10 +266,11 @@ async function executeEpic(
     allResults.push(...fixResults);
   }
 
+  const scoredAllResults = allResults as Array<{ score?: number }>;
   workerBus.emit("employee:epic:done", {
     sessionId,
     totalJobs: allResults.length,
-    avgScore: allResults.reduce((s, r) => s + ((r as { score?: number }).score || 0), 0) / (allResults.length || 1),
+    avgScore: scoredAllResults.reduce((s, r) => s + (r.score || 0), 0) / (scoredAllResults.length || 1),
   });
 
   return {
