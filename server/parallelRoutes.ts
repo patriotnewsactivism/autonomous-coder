@@ -16,7 +16,7 @@ export function registerParallelRoutes(app: Express) {
       const { goal, model, sessionId } = req.body;
       if (!goal) return res.status(400).json({ error: "goal required" });
 
-      const { executeTask } = await import("./employeeAgent");
+      const { executeTask } = await import("./superagent");
       const sid = sessionId || randomUUID();
 
       // Stream progress events back via SSE bus
@@ -64,8 +64,8 @@ export function registerParallelRoutes(app: Express) {
       "worker:done", "worker:failed", "worker:retrying",
       "worker:spawned", "parallel:start", "parallel:done",
       "memory:stored", "sandbox:update",
-      "employee:progress", "employee:classified", "employee:classifying",
-      "employee:epic:start", "employee:epic:done", "employee:done"
+      "superagent:progress", "superagent:classified", "superagent:classifying",
+      "superagent:epic:start", "superagent:epic:done", "superagent:done"
     ];
 
     const handlers: Record<string, (data: any) => void> = {};

@@ -9,7 +9,7 @@
  * This is the omnipresence layer. One agent, all tasks.
  */
 
-import { callAI, parseJsonResponse } from "./routes";
+import { callAI, callAIStream, parseJsonResponse } from "./routes";
 import { storeMemory, retrieveMemory } from "./agentMemory";
 import { runWorkerJob, runParallelWorkers, spawnSubWorkers, workerBus, WorkerJob } from "./agentWorker";
 import { randomUUID } from "crypto";
@@ -144,12 +144,12 @@ async function executeSimple(
     general: GENERALIST_PROMPT,
   };
 
-  const { content } = await callAI(
-    promptMap[classification.category] || GENERALIST_PROMPT,
-    goal,
-    model,
-    onToken
-  );
+  const prompt = promptMap[classification.category] || GENERALIST_PROMPT;
+  if (onToken) {
+    const { content } = await callAIStream(prompt, goal, onToken, model);
+    return { output: content, type: "answer" };
+  }
+  const { content } = await callAI(prompt, goal, model);
   return { output: content, type: "answer" };
 }
 
