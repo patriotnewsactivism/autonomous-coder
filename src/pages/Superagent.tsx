@@ -69,7 +69,7 @@ const EXAMPLE_TASKS = [
   "Plan a 6-month product roadmap for a B2B SaaS startup in fintech",
 ];
 
-export default function EmployeeMode() {
+export default function Superagent() {
   const [goal, setGoal] = useState("");
   const [isRunning, setIsRunning] = useState(false);
   const [classification, setClassification] = useState<TaskClassification | null>(null);
@@ -102,12 +102,12 @@ export default function EmployeeMode() {
     setResult(null);
     sandbox.reset();
     sandbox.setBuilding(true);
-    sandbox.addLog("⚡ AI Employee activated");
+    sandbox.addLog("⚡ Superagent activated");
     sandbox.addLog(`📋 Goal: ${goal.slice(0, 100)}${goal.length > 100 ? "…" : ""}`);
 
     try {
       const model = getSelectedModel();
-      const res = await fetch(`${apiBase}/api/employee/task`, {
+      const res = await fetch(`${apiBase}/api/superagent/task`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ goal, model, sessionId }),
@@ -146,7 +146,7 @@ export default function EmployeeMode() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/10 border border-cyan-500/20 rounded-full">
             <Brain className="h-4 w-4 text-cyan-400" />
-            <span className="text-sm font-semibold text-cyan-400">AI Employee</span>
+            <span className="text-sm font-semibold text-cyan-400">Superagent</span>
           </div>
           <p className="text-sm text-slate-500">Any task. Simple or complex. Fully autonomous.</p>
         </div>

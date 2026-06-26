@@ -1,6 +1,6 @@
 
 /**
- * AI Employee — Universal Task Router
+ * Superagent — Universal Task Router
  * 
  * Classifies ANY input (simple or complex) and executes the right pipeline.
  * Simple tasks: answer, research, write, summarize — done in one pass.
@@ -82,7 +82,7 @@ export async function classifyTask(
 
 // ── Execution strategies ──────────────────────────────────────────────────────
 
-const GENERALIST_PROMPT = `You are an elite AI employee — highly capable, precise, and autonomous.
+const GENERALIST_PROMPT = `You are an elite Superagent — highly capable, precise, and autonomous.
 Complete the given task fully and perfectly. Think step by step.
 For research: be thorough and cite specifics.
 For writing: be polished and publication-ready.
@@ -159,12 +159,12 @@ async function executeComplex(
   classification: TaskClassification,
   sessionId: string,
   model?: string
-): Promise<{ jobs: unknown[]; summary: string }> {
+): Promise<{ jobs: any[]; summary: string }> {
   const agents = classification.suggestedAgents.length > 0
     ? classification.suggestedAgents
     : ["orchestrator", "strategist", "builder", "reviewer", "fixer"];
 
-  const jobs: WorkerJob[] = agents.map((agent) => ({
+  const jobs: WorkerJob[] = agents.map((agent, i) => ({
     id: randomUUID(),
     sessionId,
     agent,
@@ -182,8 +182,8 @@ async function executeComplex(
   const parallelEnd = jobs.filter(j => ["testing", "security", "performance"].includes(j.agent));
   const serialEnd = jobs.filter(j => ["reviewer", "fixer"].includes(j.agent));
 
-  const results: unknown[] = [];
-  let ctx: Record<string, unknown> = { goal, classification };
+  const results: any[] = [];
+  let ctx: any = { goal, classification };
 
   for (const job of serialStart) {
     const r = await runWorkerJob({ ...job, context: ctx });
@@ -215,7 +215,7 @@ async function executeComplex(
     if (r.output) ctx = { ...ctx, [`${job.agent}Output`]: r.output };
   }
 
-  const avgScore = results.reduce((s, r) => s + ((r as { score?: number }).score || 0), 0) / (results.length || 1);
+  const avgScore = results.reduce((s, r) => s + (r.score || 0), 0) / (results.length || 1);
   return {
     jobs: results,
     summary: `Completed ${results.length} agents | avg score: ${avgScore.toFixed(1)}/10`,
@@ -228,11 +228,11 @@ async function executeEpic(
   classification: TaskClassification,
   sessionId: string,
   model?: string
-): Promise<{ results: unknown[]; summary: string }> {
-  workerBus.emit("employee:epic:start", { sessionId, goal, subtaskCount: classification.subtasks?.length });
+): Promise<{ results: any[]; summary: string }> {
+  workerBus.emit("superagent:epic:start", { sessionId, goal, subtaskCount: classification.subtasks?.length });
 
   const subtasks = classification.subtasks || [goal];
-  const allResults: unknown[] = [];
+  const allResults: any[] = [];
 
   // Spawn parallel jobs for each subtask
   const parentJob: WorkerJob = {
@@ -255,21 +255,21 @@ async function executeEpic(
   allResults.push(...spawnResults);
 
   // Each sub-result that scores < 7 gets a fixer spawned
-  const needsFix = spawnResults.filter(r => ((r as { score?: number }).score || 0) < 7 && r.output);
+  const needsFix = spawnResults.filter(r => (r.score || 0) < 7 && r.output);
   if (needsFix.length > 0) {
     const fixJobs = needsFix.map(r => ({
       agent: "fixer",
-      goal: `Fix issues in: ${(r as { agent?: string }).agent || "builder"} output for ${(r as { jobId?: string }).jobId || ""}`,
-      context: { files: (r.output as { files?: unknown[] })?.files || [], parentScore: (r as { score?: number }).score },
+      goal: `Fix issues in: ${r.agent} output for ${r.jobId}`,
+      context: { files: r.output?.files || [], parentScore: r.score },
     }));
     const fixResults = await spawnSubWorkers(parentJob, fixJobs);
     allResults.push(...fixResults);
   }
 
-  workerBus.emit("employee:epic:done", {
+  workerBus.emit("superagent:epic:done", {
     sessionId,
     totalJobs: allResults.length,
-    avgScore: allResults.reduce((s, r) => s + ((r as { score?: number }).score || 0), 0) / (allResults.length || 1),
+    avgScore: allResults.reduce((s, r) => s + (r.score || 0), 0) / (allResults.length || 1),
   });
 
   return {
@@ -280,12 +280,12 @@ async function executeEpic(
 
 // ── Master entry point ────────────────────────────────────────────────────────
 
-export interface EmployeeTaskResult {
+export interface SuperagentTaskResult {
   sessionId: string;
   classification: TaskClassification;
   output?: string;
-  files?: unknown[];
-  jobs?: unknown[];
+  files?: any[];
+  jobs?: any[];
   summary: string;
   durationMs: number;
 }
@@ -299,7 +299,7 @@ export async function executeTask(
     onClassified?: (c: TaskClassification) => void;
     onProgress?: (msg: string) => void;
   } = {}
-): Promise<EmployeeTaskResult> {
+): Promise<SuperagentTaskResult> {
   const start = Date.now();
   const sessionId = options.sessionId || randomUUID();
   const { model, onToken, onClassified, onProgress } = options;
@@ -313,24 +313,24 @@ export async function executeTask(
   const enrichedGoal = `${goal}${memCtx}`;
 
   onProgress?.("🧠 Classifying task…");
-  workerBus.emit("employee:classifying", { sessionId, goal });
+  workerBus.emit("superagent:classifying", { sessionId, goal });
 
   const classification = await classifyTask(enrichedGoal, model);
   onClassified?.(classification);
 
   onProgress?.(`📋 Task: ${classification.title} | ${classification.complexity} | ${classification.category}`);
-  workerBus.emit("employee:classified", { sessionId, classification });
+  workerBus.emit("superagent:classified", { sessionId, classification });
 
   // Store intent in memory
   await storeMemory({
     session_id: sessionId,
-    agent: "employee",
+    agent: "superagent",
     type: "context",
     content: `Task: ${classification.title} | Category: ${classification.category} | Complexity: ${classification.complexity}`,
     tags: [classification.category, classification.complexity],
   });
 
-  const result: EmployeeTaskResult = {
+  let result: SuperagentTaskResult = {
     sessionId,
     classification,
     summary: "",
@@ -346,7 +346,7 @@ export async function executeTask(
 
       await storeMemory({
         session_id: sessionId,
-        agent: "employee",
+        agent: "superagent",
         type: "success",
         content: `Simple: ${classification.title} — completed`,
         tags: [classification.category, "success"],
@@ -357,7 +357,7 @@ export async function executeTask(
       onProgress?.("🌿 Spawning exponential workers for epic task…");
       const { results, summary } = await executeEpic(enrichedGoal, classification, sessionId, model);
       result.jobs = results;
-      result.files = results.flatMap(r => ((r as { output?: { files?: unknown[] } }).output)?.files || []);
+      result.files = results.flatMap(r => r.output?.files || []);
       result.summary = summary;
 
     } else {
@@ -365,14 +365,14 @@ export async function executeTask(
       onProgress?.("🤖 Launching agent pipeline…");
       const { jobs, summary } = await executeComplex(enrichedGoal, classification, sessionId, model);
       result.jobs = jobs;
-      result.files = jobs.flatMap(r => ((r as { output?: { files?: unknown[] } }).output)?.files || []);
+      result.files = jobs.flatMap(r => r.output?.files || []);
       result.summary = summary;
     }
-  } catch (err) {
-    result.summary = `Failed: ${(err as Error)?.message || "unknown error"}`;
+  } catch (err: any) {
+    result.summary = `Failed: ${err?.message || "unknown error"}`;
     await storeMemory({
       session_id: sessionId,
-      agent: "employee",
+      agent: "superagent",
       type: "failure",
       content: `Task failed: ${classification.title} — ${result.summary}`,
       tags: [classification.category, "failure"],
@@ -381,6 +381,6 @@ export async function executeTask(
   }
 
   result.durationMs = Date.now() - start;
-  workerBus.emit("employee:done", { sessionId, result });
+  workerBus.emit("superagent:done", { sessionId, result });
   return result;
 }

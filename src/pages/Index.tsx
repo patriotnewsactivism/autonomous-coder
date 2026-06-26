@@ -5,8 +5,9 @@ import FeatureCard from "@/components/FeatureCard";
 import StatCard from "@/components/StatCard";
 import RecentActivity from "@/components/RecentActivity";
 import CodeEditor from "@/components/CodeEditor";
-import GitHubInput from "@/components/GitHubInput";
+import GitHubConnect from "@/components/GitHubConnect";
 import AnalysisResult from "@/components/AnalysisResult";
+import { GeneratedFile } from "@/lib/agents";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { analyzeCode, detectLanguage } from "@/lib/api";
@@ -20,6 +21,13 @@ interface Issue {
   line?: number;
   suggestion?: string;
   fixedCode?: string;
+}
+
+interface Activity {
+  id: string;
+  type: "pending" | "success" | "error";
+  message: string;
+  time: string;
 }
 
 const Index = () => {
@@ -37,7 +45,7 @@ const Index = () => {
     failed: 0,
   });
 
-  const [activities, setActivities] = useState<any[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
 
   const features = [
     {
@@ -121,23 +129,83 @@ const Index = () => {
     }
   };
 
-  const handleGitHubConnect = async (url: string) => {
+  const handleGitHubFilesLoaded = async (files: GeneratedFile[], repoName: string) => {
+    if (files.length === 0) {
+      toast.error("No files were loaded from the repository");
+      return;
+    }
+
+    const combinedCode = files
+      .map((file) => `// File: ${file.path}\n${file.content}`)
+      .join("\n\n");
+
+    setCode(combinedCode);
+    setActiveTab("manual");
     setIsAnalyzing(true);
-    
+
     setActivities((prev) => [
       {
         id: Date.now().toString(),
         type: "pending",
-        message: `Connecting to ${url.split("/").slice(-2).join("/")}...`,
+        message: `Analyzing ${files.length} file${files.length > 1 ? "s" : ""} from ${repoName}...`,
         time: "Just now",
       },
       ...prev.slice(0, 4),
     ]);
 
-    // Simulate connection - in a real implementation, this would fetch repo contents
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setIsAnalyzing(false);
-    toast.info("GitHub integration coming soon! For now, paste your code manually.");
+    try {
+      const language = detectLanguage(combinedCode);
+      const result = await analyzeCode(combinedCode, language);
+
+      setAnalysisResults(result.issues || []);
+      setAnalysisSummary(result.summary || "");
+      setHasAnalyzed(true);
+
+      setStats((prev) => ({
+        ...prev,
+        analyzed: prev.analyzed + 1,
+        inProgress: Math.max(0, prev.inProgress - 1),
+      }));
+
+      const issueCount = result.issues?.length || 0;
+      setActivities((prev) => [
+        {
+          id: Date.now().toString(),
+          type: issueCount === 0 ? "success" : "success",
+          message: `Analyzed ${files.length} files from ${repoName} - Found ${issueCount} issues`,
+          time: "Just now",
+        },
+        ...prev.slice(0, 4),
+      ]);
+
+      if (issueCount === 0) {
+        toast.success("Analysis complete! No issues found. 🎉");
+      } else {
+        toast.success(`Analysis complete! Found ${issueCount} issue${issueCount > 1 ? "s" : ""}.`);
+      }
+    } catch (error) {
+      console.error("Analysis failed:", error);
+
+      setStats((prev) => ({
+        ...prev,
+        failed: prev.failed + 1,
+        inProgress: Math.max(0, prev.inProgress - 1),
+      }));
+
+      setActivities((prev) => [
+        {
+          id: Date.now().toString(),
+          type: "error",
+          message: error instanceof Error ? error.message : "Analysis failed",
+          time: "Just now",
+        },
+        ...prev.slice(0, 4),
+      ]);
+
+      toast.error(error instanceof Error ? error.message : "Analysis failed. Please try again.");
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const handleApplyFix = (issueId: string) => {
@@ -259,7 +327,7 @@ const Index = () => {
                   </Button>
                 </div>
               ) : (
-                <GitHubInput onSubmit={handleGitHubConnect} isLoading={isAnalyzing} />
+                <GitHubConnect onFilesLoaded={handleGitHubFilesLoaded} />
               )}
             </div>
 

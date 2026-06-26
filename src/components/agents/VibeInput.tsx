@@ -3,7 +3,7 @@ import { Send, Loader2, Sparkles, StopCircle, Lightbulb, ChevronDown, ChevronUp,
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 
-export type BuildMode = "vibe" | "employee";
+export type BuildMode = "vibe" | "superagent";
 
 export interface ProjectType {
   id: string;
@@ -121,25 +121,25 @@ const VibeInput = ({ onSubmit, isRunning, onStop }: VibeInputProps) => {
           <span>Vibe Builder</span>
         </button>
         <button
-          onClick={() => { setMode("employee"); setShowProjectTypes(true); }}
+          onClick={() => { setMode("superagent"); setShowProjectTypes(true); }}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all ${
-            mode === "employee"
+            mode === "superagent"
               ? "border-emerald-500 bg-emerald-500/10 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
               : "border-border/40 text-muted-foreground hover:border-emerald-500/40 hover:text-foreground"
           }`}
         >
           <Bot className="h-4 w-4" />
-          <span>AI Employee</span>
+          <span>Superagent</span>
           <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold">NEW</span>
         </button>
       </div>
 
-      {/* AI Employee - Project Type Selector */}
+      {/* Superagent - Project Type Selector */}
       <AnimatePresence>
-        {mode === "employee" && showProjectTypes && (
+        {mode === "superagent" && showProjectTypes && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
             <div className="mb-2 text-center">
-              <p className="text-xs text-muted-foreground">Select a project type — your AI employee will work autonomously</p>
+              <p className="text-xs text-muted-foreground">Select a project type — your AI superagent will work autonomously</p>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               {PROJECT_TYPES.map((pt) => (
@@ -163,7 +163,7 @@ const VibeInput = ({ onSubmit, isRunning, onStop }: VibeInputProps) => {
       </AnimatePresence>
 
       {/* Selected Project Type Badge */}
-      {mode === "employee" && selectedProjectType && !showProjectTypes && (
+      {mode === "superagent" && selectedProjectType && !showProjectTypes && (
         <div className="flex items-center justify-center gap-2">
           <button
             onClick={() => setShowProjectTypes(true)}
@@ -180,16 +180,16 @@ const VibeInput = ({ onSubmit, isRunning, onStop }: VibeInputProps) => {
       {/* Input Form */}
       <form onSubmit={handleSubmit} className="relative">
         <div className={`relative glass-card rounded-xl sm:rounded-2xl border overflow-hidden transition-all focus-within:shadow-glow ${
-          mode === "employee" ? "border-emerald-500/30 focus-within:border-emerald-500/50" : "border-border/50 focus-within:border-primary/50"
+          mode === "superagent" ? "border-emerald-500/30 focus-within:border-emerald-500/50" : "border-border/50 focus-within:border-primary/50"
         }`}>
           <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 border-b border-border/30">
-            {mode === "employee" ? (
+            {mode === "superagent" ? (
               <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-400 flex-shrink-0" />
             ) : (
               <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
             )}
             <span className="text-xs sm:text-sm font-medium text-foreground flex-1">
-              {mode === "employee"
+              {mode === "superagent"
                 ? "Describe your project — AI will handle the rest"
                 : "What do you want to build?"}
             </span>
@@ -214,7 +214,7 @@ const VibeInput = ({ onSubmit, isRunning, onStop }: VibeInputProps) => {
           </div>
 
           <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
-            placeholder={mode === "employee"
+            placeholder={mode === "superagent"
               ? "e.g. 'Build me a SaaS dashboard with user auth, Stripe billing, and admin panel'..."
               : "Describe your app in detail..."}
             disabled={isRunning} rows={4}
@@ -224,7 +224,7 @@ const VibeInput = ({ onSubmit, isRunning, onStop }: VibeInputProps) => {
           <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2.5 sm:py-3 border-t border-border/30 bg-muted/20">
             <p className="text-[10px] sm:text-xs text-muted-foreground hidden sm:block">
               {isRunning
-                ? mode === "employee" ? "🤖 AI Employee working autonomously — you'll be notified on decisions..." : "AI agents are working autonomously..."
+                ? mode === "superagent" ? "🤖 Superagent working autonomously — you'll be notified on decisions..." : "AI agents are working autonomously..."
                 : "Press Enter to start · Shift+Enter for new line"}
             </p>
             <p className="text-[10px] text-muted-foreground sm:hidden">
@@ -237,12 +237,12 @@ const VibeInput = ({ onSubmit, isRunning, onStop }: VibeInputProps) => {
               </Button>
             ) : (
               <Button type="submit"
-                disabled={!input.replace(/\[listening\.\.\.\]/g, "").trim() || (mode === "employee" && !selectedProjectType)}
+                disabled={!input.replace(/\[listening\.\.\.\]/g, "").trim() || (mode === "superagent" && !selectedProjectType)}
                 size="sm"
-                className={`gap-2 h-8 px-3 text-xs ${mode === "employee" ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "glow-button"}`}>
-                {mode === "employee" ? <Bot className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
-                <span className="hidden sm:inline">{mode === "employee" ? "Deploy Employee" : "Start Building"}</span>
-                <span className="sm:hidden">{mode === "employee" ? "Deploy" : "Build"}</span>
+                className={`gap-2 h-8 px-3 text-xs ${mode === "superagent" ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "glow-button"}`}>
+                {mode === "superagent" ? <Bot className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
+                <span className="hidden sm:inline">{mode === "superagent" ? "Deploy Superagent" : "Start Building"}</span>
+                <span className="sm:hidden">{mode === "superagent" ? "Deploy" : "Build"}</span>
               </Button>
             )}
           </div>
@@ -252,9 +252,9 @@ const VibeInput = ({ onSubmit, isRunning, onStop }: VibeInputProps) => {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-sm rounded-xl sm:rounded-2xl">
             <div className="flex items-center gap-2 sm:gap-3">
-              <Loader2 className={`h-5 w-5 sm:h-6 sm:w-6 animate-spin ${mode === "employee" ? "text-emerald-400" : "text-primary"}`} />
+              <Loader2 className={`h-5 w-5 sm:h-6 sm:w-6 animate-spin ${mode === "superagent" ? "text-emerald-400" : "text-primary"}`} />
               <span className="text-xs sm:text-sm font-medium text-foreground">
-                {mode === "employee" ? "AI Employee working autonomously..." : "Agents working..."}
+                {mode === "superagent" ? "Superagent working autonomously..." : "Agents working..."}
               </span>
             </div>
           </motion.div>

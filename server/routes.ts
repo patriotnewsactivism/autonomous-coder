@@ -939,7 +939,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            text: `${emoji} *AI Employee — ${opts.title}*\nAgent: \`${opts.agent}\` | Severity: ${opts.severity}\n\n${opts.message}${decisionText}`,
+            text: `${emoji} *Superagent — ${opts.title}*\nAgent: \`${opts.agent}\` | Severity: ${opts.severity}\n\n${opts.message}${decisionText}`,
           }),
         });
         results.slack = true;
@@ -959,7 +959,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           body: JSON.stringify({
             from: NOTIFY_EMAIL,
             to: [NOTIFY_TO_EMAIL],
-            subject: `${emoji} AI Employee: ${opts.title}`,
+            subject: `${emoji} Superagent: ${opts.title}`,
             html: `
               <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <div style="background: #0f172a; border-radius: 12px; padding: 24px; color: #e2e8f0;">

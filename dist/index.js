@@ -153,71 +153,55 @@ var init_storage = __esm({
 function getFallbackModel(currentModel) {
   const chain = [];
   if (USE_DEEPSEEK) chain.push(DEEPSEEK_MODEL);
-  if (USE_GROK) chain.push(GROK_MODEL);
-  if (USE_AZURE_OPENAI) chain.push(AZURE_DEPLOYMENT);
+  if (USE_GROQ) chain.push(GROQ_MODEL);
   const idx = chain.indexOf(currentModel);
   return idx >= 0 && idx < chain.length - 1 ? chain[idx + 1] : null;
 }
 function getModelProvider(model) {
-  if (model === DEEPSEEK_MODEL || model.toLowerCase().includes("deepseek")) return "azure-foundry-deepseek";
-  if (model === GROK_MODEL || model.toLowerCase().includes("grok")) return "azure-foundry-grok";
-  return "azure-openai";
+  if (model.toLowerCase().includes("deepseek")) return "deepseek";
+  return "groq";
 }
 function getModelEndpoint(model) {
   const provider = getModelProvider(model);
   switch (provider) {
-    case "azure-foundry-deepseek":
+    case "deepseek":
       return {
         url: DEEPSEEK_ENDPOINT,
         headers: { "Authorization": `Bearer ${DEEPSEEK_API_KEY}`, "Content-Type": "application/json" }
       };
-    case "azure-foundry-grok":
+    case "groq":
+    default:
       return {
-        url: GROK_ENDPOINT,
-        headers: { "Authorization": `Bearer ${GROK_API_KEY}`, "Content-Type": "application/json" }
+        url: GROQ_ENDPOINT,
+        headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" }
       };
-    default: {
-      const dep = model || AZURE_DEPLOYMENT;
-      return {
-        url: `${AZURE_ENDPOINT}/openai/deployments/${dep}/chat/completions?api-version=${AZURE_API_VERSION}`,
-        headers: { "api-key": process.env.AZURE_OPENAI_API_KEY || "", "Content-Type": "application/json" }
-      };
-    }
   }
 }
 function getAvailableModels() {
   const models = [];
-  if (USE_DEEPSEEK) models.push(DEEPSEEK_MODEL);
-  if (USE_GROK) models.push(GROK_MODEL);
-  if (USE_AZURE_OPENAI) {
-    const extra = process.env.AZURE_OPENAI_MODELS || "";
-    const azureModels = extra.split(",").map((s) => s.trim()).filter(Boolean);
-    if (!azureModels.includes(AZURE_DEPLOYMENT)) azureModels.unshift(AZURE_DEPLOYMENT);
-    models.push(...azureModels);
+  if (USE_DEEPSEEK) {
+    models.push("deepseek-chat", "deepseek-reasoner");
+  }
+  if (USE_GROQ) {
+    models.push("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it");
   }
   return models;
 }
 function calcCost(model, promptTokens, completionTokens) {
-  const pricing = MODEL_PRICING[model] || MODEL_PRICING[AZURE_DEPLOYMENT] || [0.15, 0.6];
+  const pricing = MODEL_PRICING[model] || MODEL_PRICING[DEFAULT_MODEL] || [0.15, 0.6];
   return promptTokens / 1e6 * pricing[0] + completionTokens / 1e6 * pricing[1];
 }
 async function callAI(systemPrompt, userMessage, model) {
   const deployment = model || DEFAULT_MODEL;
   const { url, headers } = getModelEndpoint(deployment);
-  const provider = getModelProvider(deployment);
   const bodyPayload = {
+    model: deployment,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage }
     ],
     max_tokens: 4096
   };
-  if (provider !== "azure-openai") {
-    bodyPayload.model = deployment;
-  } else {
-    delete bodyPayload.max_tokens;
-    bodyPayload.max_completion_tokens = 4096;
-  }
   const response = await fetch(url, {
     method: "POST",
     headers,
@@ -252,8 +236,8 @@ async function callAI(systemPrompt, userMessage, model) {
 async function callAIStream(systemPrompt, userMessage, onToken, model) {
   const deployment = model || DEFAULT_MODEL;
   const { url, headers } = getModelEndpoint(deployment);
-  const provider = getModelProvider(deployment);
   const bodyPayload = {
+    model: deployment,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage }
@@ -262,12 +246,6 @@ async function callAIStream(systemPrompt, userMessage, onToken, model) {
     stream: true,
     stream_options: { include_usage: true }
   };
-  if (provider !== "azure-openai") {
-    bodyPayload.model = deployment;
-  } else {
-    delete bodyPayload.max_tokens;
-    bodyPayload.max_completion_tokens = 4096;
-  }
   const response = await fetch(url, {
     method: "POST",
     headers,
@@ -338,8 +316,8 @@ function sendSSE(res, event, data) {
 
 `);
 }
-async function registerRoutes(app3) {
-  app3.post("/api/analyze-code", async (req, res) => {
+async function registerRoutes(app2) {
+  app2.post("/api/analyze-code", async (req, res) => {
     try {
       const { code, language } = req.body;
       if (!code || typeof code !== "string") return res.status(400).json({ error: "Code is required" });
@@ -363,7 +341,7 @@ ${code}`, req.body.model);
       res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
     }
   });
-  app3.get("/api/models", (_req, res) => {
+  app2.get("/api/models", (_req, res) => {
     const models = getAvailableModels();
     const pricing = {};
     for (const m of models) {
@@ -372,7 +350,7 @@ ${code}`, req.body.model);
     }
     res.json({ models, default: DEFAULT_MODEL, pricing });
   });
-  app3.post("/api/ai-agent", async (req, res) => {
+  app2.post("/api/ai-agent", async (req, res) => {
     try {
       const { goal, context, agentType, model } = req.body;
       const systemPrompt = systemPrompts[agentType] || systemPrompts.orchestrator;
@@ -390,7 +368,7 @@ Context: ${JSON.stringify(context || {})}`, model);
       res.status(500).json({ error: error instanceof Error ? error.message : "Agent failed" });
     }
   });
-  app3.post("/api/ai-agent/stream", async (req, res) => {
+  app2.post("/api/ai-agent/stream", async (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
@@ -422,7 +400,7 @@ Context: ${JSON.stringify(context || {})}`,
       res.end();
     }
   });
-  app3.get("/api/analyses/recent", async (req, res) => {
+  app2.get("/api/analyses/recent", async (req, res) => {
     try {
       const limit = parseInt(req.query.limit) || 10;
       res.json(await storage.getRecentAnalyses(limit));
@@ -430,7 +408,7 @@ Context: ${JSON.stringify(context || {})}`,
       res.status(500).json({ error: "Failed to get recent analyses" });
     }
   });
-  app3.post("/api/projects", async (req, res) => {
+  app2.post("/api/projects", async (req, res) => {
     try {
       const { goal, files, agentSequence } = req.body;
       if (!goal || !files) return res.status(400).json({ error: "Goal and files required" });
@@ -445,7 +423,7 @@ Context: ${JSON.stringify(context || {})}`,
       res.status(500).json({ error: "Failed to save project" });
     }
   });
-  app3.get("/api/projects/recent", async (req, res) => {
+  app2.get("/api/projects/recent", async (req, res) => {
     try {
       const limit = parseInt(req.query.limit) || 20;
       const projects = await storage.getRecentProjects(limit);
@@ -460,7 +438,7 @@ Context: ${JSON.stringify(context || {})}`,
       res.status(500).json({ error: "Failed to get projects" });
     }
   });
-  app3.get("/api/projects/:id", async (req, res) => {
+  app2.get("/api/projects/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const project = await storage.getProject(id);
@@ -470,7 +448,7 @@ Context: ${JSON.stringify(context || {})}`,
       res.status(500).json({ error: "Failed to get project" });
     }
   });
-  app3.post("/api/github/repos", async (req, res) => {
+  app2.post("/api/github/repos", async (req, res) => {
     try {
       const { token } = req.body;
       if (!token) return res.status(400).json({ error: "GitHub token required" });
@@ -497,7 +475,7 @@ Context: ${JSON.stringify(context || {})}`,
       res.status(500).json({ error: "Failed to fetch repositories" });
     }
   });
-  app3.post("/api/github/repo-files", async (req, res) => {
+  app2.post("/api/github/repo-files", async (req, res) => {
     try {
       const { token, fullName, branch = "main" } = req.body;
       if (!token || !fullName) return res.status(400).json({ error: "Token and repo name required" });
@@ -518,7 +496,7 @@ Context: ${JSON.stringify(context || {})}`,
       res.status(500).json({ error: "Failed to fetch repository files" });
     }
   });
-  app3.post("/api/github/file-content", async (req, res) => {
+  app2.post("/api/github/file-content", async (req, res) => {
     try {
       const { token, fullName, filePath, branch = "main" } = req.body;
       if (!token || !fullName || !filePath) return res.status(400).json({ error: "Missing parameters" });
@@ -533,7 +511,7 @@ Context: ${JSON.stringify(context || {})}`,
       res.status(500).json({ error: "Failed to fetch file content" });
     }
   });
-  app3.post("/api/github/analyze-pr", async (req, res) => {
+  app2.post("/api/github/analyze-pr", async (req, res) => {
     try {
       const { token, fullName, prNumber } = req.body;
       if (!token || !fullName || !prNumber) return res.status(400).json({ error: "Token, repo, and PR number required" });
@@ -577,7 +555,7 @@ ${JSON.stringify(prInfo, null, 2)}`
       res.status(500).json({ error: "Failed to analyze PR" });
     }
   });
-  app3.post("/api/github/clone", async (req, res) => {
+  app2.post("/api/github/clone", async (req, res) => {
     try {
       const { repoUrl } = req.body;
       if (!repoUrl) {
@@ -633,7 +611,7 @@ ${i + 1}. ${o}`).join("")}` : "";
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            text: `${emoji} *AI Employee \u2014 ${opts.title}*
+            text: `${emoji} *Superagent \u2014 ${opts.title}*
 Agent: \`${opts.agent}\` | Severity: ${opts.severity}
 
 ${opts.message}${decisionText}`
@@ -656,7 +634,7 @@ ${opts.message}${decisionText}`
           body: JSON.stringify({
             from: NOTIFY_EMAIL,
             to: [NOTIFY_TO_EMAIL],
-            subject: `${emoji} AI Employee: ${opts.title}`,
+            subject: `${emoji} Superagent: ${opts.title}`,
             html: `
               <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <div style="background: #0f172a; border-radius: 12px; padding: 24px; color: #e2e8f0;">
@@ -686,7 +664,7 @@ ${opts.message}${decisionText}`
     }
     return results;
   }
-  app3.post("/api/notify", async (req, res) => {
+  app2.post("/api/notify", async (req, res) => {
     try {
       const { projectId, agent, severity, title, message, requiresDecision, decisionOptions } = req.body;
       if (!title || !message) return res.status(400).json({ error: "title and message required" });
@@ -704,7 +682,7 @@ ${opts.message}${decisionText}`
       res.status(500).json({ error: "Failed to send notification" });
     }
   });
-  app3.get("/api/notifications", async (_req, res) => {
+  app2.get("/api/notifications", async (_req, res) => {
     try {
       if (!SUPABASE_URL3 || !SUPABASE_SERVICE_KEY) return res.json([]);
       const response = await fetch(
@@ -717,7 +695,7 @@ ${opts.message}${decisionText}`
       res.json([]);
     }
   });
-  app3.post("/api/notifications/:id/respond", async (req, res) => {
+  app2.post("/api/notifications/:id/respond", async (req, res) => {
     try {
       const { response: userResponse } = req.body;
       if (!SUPABASE_URL3 || !SUPABASE_SERVICE_KEY) return res.status(500).json({ error: "No storage" });
@@ -741,7 +719,7 @@ ${opts.message}${decisionText}`
     }
   });
 }
-var systemPromptAnalyze, systemPrompts, AZURE_ENDPOINT, AZURE_DEPLOYMENT, AZURE_API_VERSION, DEEPSEEK_ENDPOINT, DEEPSEEK_API_KEY, DEEPSEEK_MODEL, USE_DEEPSEEK, GROK_ENDPOINT, GROK_API_KEY, GROK_MODEL, USE_GROK, USE_AZURE_OPENAI, DEFAULT_MODEL, MODEL_PRICING;
+var systemPromptAnalyze, systemPrompts, DEEPSEEK_ENDPOINT, DEEPSEEK_API_KEY, DEEPSEEK_MODEL, USE_DEEPSEEK, GROQ_ENDPOINT, GROQ_API_KEY, GROQ_MODEL, USE_GROQ, DEFAULT_MODEL, MODEL_PRICING;
 var init_routes = __esm({
   "server/routes.ts"() {
     init_github();
@@ -1101,30 +1079,22 @@ Rules:
 - Preserve existing code style
 - Make minimum necessary changes`
     };
-    AZURE_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT || "https://openaiyoutube.openai.azure.com";
-    AZURE_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-5-mini";
-    AZURE_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || "2024-02-01";
-    DEEPSEEK_ENDPOINT = process.env.DEEPSEEK_ENDPOINT || "https://patri-mojrzk25-swedencentral.services.ai.azure.com/models/chat/completions?api-version=2024-05-01-preview";
+    DEEPSEEK_ENDPOINT = process.env.DEEPSEEK_ENDPOINT || "https://api.deepseek.com/v1/chat/completions";
     DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || "";
-    DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "DeepSeek-V3.2";
+    DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-chat";
     USE_DEEPSEEK = Boolean(DEEPSEEK_API_KEY);
-    GROK_ENDPOINT = process.env.GROK_ENDPOINT || "https://patri-mojrzk25-swedencentral.services.ai.azure.com/models/chat/completions?api-version=2024-05-01-preview";
-    GROK_API_KEY = process.env.GROK_API_KEY || "";
-    GROK_MODEL = process.env.GROK_MODEL || "grok-4-1-fast-reasoning";
-    USE_GROK = Boolean(GROK_API_KEY);
-    USE_AZURE_OPENAI = Boolean(process.env.AZURE_OPENAI_DEPLOYMENT && process.env.AZURE_OPENAI_API_KEY);
-    DEFAULT_MODEL = USE_DEEPSEEK ? DEEPSEEK_MODEL : USE_GROK ? GROK_MODEL : AZURE_DEPLOYMENT;
+    GROQ_ENDPOINT = process.env.GROQ_ENDPOINT || "https://api.groq.com/openai/v1/chat/completions";
+    GROQ_API_KEY = process.env.GROQ_API_KEY || "";
+    GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+    USE_GROQ = Boolean(GROQ_API_KEY);
+    DEFAULT_MODEL = USE_DEEPSEEK ? DEEPSEEK_MODEL : USE_GROQ ? GROQ_MODEL : DEEPSEEK_MODEL;
     MODEL_PRICING = {
-      "DeepSeek-V3.2": [0.28, 0.42],
-      "grok-4-1-fast-reasoning": [0.2, 0.5],
-      "gpt-5-mini": [0.25, 2],
-      "gpt-4o": [2.5, 10],
-      "gpt-4o-mini": [0.15, 0.6],
-      "gpt-4": [30, 60],
-      "gpt-4-turbo": [10, 30],
-      "gpt-35-turbo": [0.5, 1.5],
-      "o1-mini": [1.1, 4.4],
-      "o1": [15, 60]
+      "deepseek-chat": [0.14, 0.28],
+      "deepseek-reasoner": [0.55, 2.19],
+      "llama-3.3-70b-versatile": [0.59, 0.79],
+      "llama-3.1-8b-instant": [0.05, 0.08],
+      "mixtral-8x7b-32768": [0.24, 0.24],
+      "gemma2-9b-it": [0.2, 0.2]
     };
   }
 });
@@ -1375,7 +1345,7 @@ async function executeSimple(goal, classification, model, onToken) {
 }
 async function executeComplex(goal, classification, sessionId, model) {
   const agents = classification.suggestedAgents.length > 0 ? classification.suggestedAgents : ["orchestrator", "strategist", "builder", "reviewer", "fixer"];
-  const jobs = agents.map((agent, i) => ({
+  const jobs = agents.map((agent) => ({
     id: randomUUID(),
     sessionId,
     agent,
@@ -1450,7 +1420,7 @@ async function executeEpic(goal, classification, sessionId, model) {
   if (needsFix.length > 0) {
     const fixJobs = needsFix.map((r) => ({
       agent: "fixer",
-      goal: `Fix issues in: ${r.agent} output for ${r.jobId}`,
+      goal: `Fix issues in: ${r.agent || "builder"} output for ${r.jobId || ""}`,
       context: { files: r.output?.files || [], parentScore: r.score }
     }));
     const fixResults = await spawnSubWorkers(parentJob, fixJobs);
@@ -1489,7 +1459,7 @@ ${memories.map((m) => `[${m.type}] ${m.content}`).join("\n")}` : "";
     content: `Task: ${classification.title} | Category: ${classification.category} | Complexity: ${classification.complexity}`,
     tags: [classification.category, classification.complexity]
   });
-  let result = {
+  const result = {
     sessionId,
     classification,
     summary: "",
@@ -1618,10 +1588,12 @@ function sendSSE2(res, event, data) {
 data: ${JSON.stringify(data)}
 
 `);
-  app.post("/api/employee/task", async (req, res2) => {
+}
+function registerParallelRoutes(app2) {
+  app2.post("/api/employee/task", async (req, res) => {
     try {
       const { goal, model, sessionId } = req.body;
-      if (!goal) return res2.status(400).json({ error: "goal required" });
+      if (!goal) return res.status(400).json({ error: "goal required" });
       const { executeTask: executeTask2 } = await Promise.resolve().then(() => (init_employeeAgent(), employeeAgent_exports));
       const sid = sessionId || randomUUID2();
       const result = await executeTask2(goal, {
@@ -1634,25 +1606,23 @@ data: ${JSON.stringify(data)}
           workerBus.emit("employee:classified", { sessionId: sid, classification });
         }
       });
-      res2.json(result);
+      res.json(result);
     } catch (err) {
-      res2.status(500).json({ error: err?.message || "employee task failed" });
+      res.status(500).json({ error: err?.message || "employee task failed" });
     }
   });
-  app.get("/api/employee/classify", async (req, res2) => {
+  app2.get("/api/employee/classify", async (req, res) => {
     try {
       const { goal, model } = req.query;
-      if (!goal) return res2.status(400).json({ error: "goal required" });
+      if (!goal) return res.status(400).json({ error: "goal required" });
       const { classifyTask: classifyTask2 } = await Promise.resolve().then(() => (init_employeeAgent(), employeeAgent_exports));
       const classification = await classifyTask2(goal, model);
-      res2.json(classification);
+      res.json(classification);
     } catch (err) {
-      res2.status(500).json({ error: err?.message });
+      res.status(500).json({ error: err?.message });
     }
   });
-}
-function registerParallelRoutes(app3) {
-  app3.get("/api/agent/stream/:sessionId", (req, res) => {
+  app2.get("/api/agent/stream/:sessionId", (req, res) => {
     const { sessionId } = req.params;
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -1671,12 +1641,6 @@ function registerParallelRoutes(app3) {
       "parallel:done",
       "memory:stored",
       "sandbox:update",
-      "employee:progress",
-      "employee:classified",
-      "employee:classifying",
-      "employee:epic:start",
-      "employee:epic:done",
-      "employee:done",
       "employee:progress",
       "employee:classified",
       "employee:classifying",
@@ -1701,7 +1665,7 @@ function registerParallelRoutes(app3) {
       events.forEach((event) => workerBus.off(event, handlers[event]));
     });
   });
-  app3.post("/api/agent/parallel-build", async (req, res) => {
+  app2.post("/api/agent/parallel-build", async (req, res) => {
     try {
       const { goal, agentSequence, context, model, sessionId } = req.body;
       if (!goal) return res.status(400).json({ error: "goal required" });
@@ -1824,7 +1788,7 @@ function registerParallelRoutes(app3) {
       res.status(500).json({ error: err?.message || "parallel build failed" });
     }
   });
-  app3.post("/api/agent/spawn", async (req, res) => {
+  app2.post("/api/agent/spawn", async (req, res) => {
     try {
       const { parentJobId, sessionId, subTasks, model } = req.body;
       if (!subTasks?.length) return res.status(400).json({ error: "subTasks required" });
@@ -1842,7 +1806,7 @@ function registerParallelRoutes(app3) {
       res.status(500).json({ error: err?.message || "spawn failed" });
     }
   });
-  app3.get("/api/agent/memory/:sessionId", async (req, res) => {
+  app2.get("/api/agent/memory/:sessionId", async (req, res) => {
     try {
       const memory = await getSessionMemory(req.params.sessionId);
       res.json(memory);
@@ -1850,7 +1814,7 @@ function registerParallelRoutes(app3) {
       res.status(500).json({ error: "memory retrieval failed" });
     }
   });
-  app3.post("/api/sandbox/execute", async (req, res) => {
+  app2.post("/api/sandbox/execute", async (req, res) => {
     try {
       const { code, language } = req.body;
       if (!code) return res.status(400).json({ error: "code required" });
@@ -1888,7 +1852,7 @@ function log(message, source = "express") {
   });
   console.log(`${formattedTime} [${source}] ${message}`);
 }
-async function setupVite(app3, server) {
+async function setupVite(app2, server) {
   const vite = await createViteServer({
     server: {
       middlewareMode: true,
@@ -1902,8 +1866,8 @@ async function setupVite(app3, server) {
       }
     }
   });
-  app3.use(vite.middlewares);
-  app3.use("/{*path}", async (req, res, next) => {
+  app2.use(vite.middlewares);
+  app2.use("/{*path}", async (req, res, next) => {
     const url = req.originalUrl;
     try {
       const clientTemplate = path.resolve(__dirname, "..", "index.html");
@@ -1916,25 +1880,25 @@ async function setupVite(app3, server) {
     }
   });
 }
-function serveStatic(app3) {
+function serveStatic(app2) {
   const distPath = path.resolve(__dirname, "..", "dist", "public");
   if (!fs.existsSync(distPath)) {
     throw new Error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`
     );
   }
-  app3.use(express.static(distPath));
-  app3.use("/{*path}", (_req, res) => {
+  app2.use(express.static(distPath));
+  app2.use("/{*path}", (_req, res) => {
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
 
 // server/index.ts
-var app2 = express2();
-app2.use(cors());
-app2.use(express2.json());
-app2.use(express2.urlencoded({ extended: false }));
-app2.use((req, res, next) => {
+var app = express2();
+app.use(cors());
+app.use(express2.json());
+app.use(express2.urlencoded({ extended: false }));
+app.use((req, res, next) => {
   const start = Date.now();
   const path2 = req.path;
   let capturedJsonResponse = void 0;
@@ -1959,21 +1923,21 @@ app2.use((req, res, next) => {
   next();
 });
 (async () => {
-  await registerRoutes(app2);
-  registerParallelRoutes(app2);
-  app2.use((err, _req, res, _next) => {
+  await registerRoutes(app);
+  registerParallelRoutes(app);
+  app.use((err, _req, res, _next) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
     log(`Error: ${message}`);
     res.status(status).json({ message });
   });
   const PORT = parseInt(process.env.PORT || "5000", 10);
-  const server = app2.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     log(`Server running on port ${PORT}`);
   });
-  if (app2.get("env") === "development") {
-    await setupVite(app2, server);
+  if (app.get("env") === "development") {
+    await setupVite(app, server);
   } else {
-    serveStatic(app2);
+    serveStatic(app);
   }
 })();

@@ -58,6 +58,8 @@ const VibeCoding = () => {
   const [buildMode, setBuildMode] = useState<BuildMode>("vibe");
   const [projectType, setProjectType] = useState<ProjectType | null>(null);
   const stopRef = useRef(false);
+  const seedFilesRef = useRef<GeneratedFile[]>([]);
+  const seedRepoRef = useRef<string>("");
 
   // Fetch available models
   useEffect(() => {
@@ -184,14 +186,22 @@ const VibeCoding = () => {
     setCompletedAgents([]); setAgentSequence([]);
     setLastProjectId(null);
 
-    // Enhance goal for AI Employee mode
-    const goal = mode === "employee" && pt
-      ? `[AI EMPLOYEE MODE - ${pt.label.toUpperCase()}]\nProject Type: ${pt.label}\nTech Stack: ${pt.techStack}\nSpecialization: ${pt.agentHint}\n\nUser Request: ${rawGoal}\n\nIMPORTANT: Work with FULL AUTONOMY. Build the complete project end-to-end. Make all technical decisions independently. Only flag critical business decisions. Produce production-ready, deployable code.`
-      : rawGoal;
+    // Seed context from imported GitHub repository
+    const seedFiles = seedFilesRef.current;
+    const seedRepo = seedRepoRef.current;
+    const seedHeader = seedFiles.length > 0
+      ? `[IMPORTED REPOSITORY: ${seedRepo || "GitHub"}]\n${seedFiles.length} file(s) have been imported as the starting codebase. Preserve the existing structure and conventions, then extend and improve upon them. Seed files: ${seedFiles.map(f => f.path).join(", ")}\n\n`
+      : "";
+    const baseGoal = `${seedHeader}${rawGoal}`;
+
+    // Enhance goal for Superagent mode
+    const goal = mode === "superagent" && pt
+      ? `[SUPERAGENT MODE - ${pt.label.toUpperCase()}]\nProject Type: ${pt.label}\nTech Stack: ${pt.techStack}\nSpecialization: ${pt.agentHint}\n\nUser Request: ${baseGoal}\n\nIMPORTANT: Work with FULL AUTONOMY. Build the complete project end-to-end. Make all technical decisions independently. Only flag critical business decisions. Produce production-ready, deployable code.`
+      : baseGoal;
     resetSessionTokens();
     setSessionTokens(0);
 
-    const allFiles: GeneratedFile[] = [];
+    const allFiles: GeneratedFile[] = [...seedFiles];
     const tick = () => setSessionTokens(getSessionTokens());
 
     try {
@@ -203,7 +213,7 @@ const VibeCoding = () => {
 
       let orchestration: OrchestratorResult;
       try {
-        orchestration = await runOrchestrator(goal, onOrchestratorToken);
+        orchestration = await runOrchestrator(goal, { existingFiles: seedFiles }, onOrchestratorToken);
         tick();
       } catch {
         orchestration = {
@@ -232,7 +242,7 @@ const VibeCoding = () => {
       sandbox.addLog(`🤖 [strategist] planning architecture…`);
         addMessage("strategist", "thinking", "Creating architecture and task breakdown...");
         const onToken = addStreamingMessage("strategist");
-        const strategy = await runStrategist(goal, undefined, onToken);
+        const strategy = await runStrategist(goal, { existingFiles: seedFiles }, onToken);
         if (stopRef.current) return;
         tick();
         setTasks(strategy.tasks.map((t) => ({ ...t, status: "pending" as const })));
@@ -470,11 +480,14 @@ setIsRunning(false);
   }, []);
 
   const handleGitHubFilesLoaded = useCallback((files: GeneratedFile[], repoName: string) => {
+    seedFilesRef.current = files;
+    seedRepoRef.current = repoName;
     setGeneratedFiles(files);
-    addMessage("reviewer", "action", `Loaded ${files.length} files from ${repoName}`);
+    sandbox.injectFiles(files);
+    addMessage("orchestrator", "action", `Loaded ${files.length} files from ${repoName} as build seed`);
     setActiveTab("build");
-    toast.success(`Loaded ${files.length} files from GitHub`);
-  }, [addMessage]);
+    toast.success(`Loaded ${files.length} files from ${repoName} as build seed`);
+  }, [addMessage, sandbox]);
 
   return (
     <div className="min-h-screen bg-background grid-pattern">
@@ -490,10 +503,10 @@ setIsRunning(false);
             </span>
           </div>
           <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-4 sm:mb-6 leading-tight px-2">
-            {buildMode === "employee" ? <>Your AI <span className="text-emerald-400">Employee</span> is ready</> : <>Vibe code like a <span className="gradient-text-primary">beast</span></>}
+            {buildMode === "superagent" ? <>Your <span className="text-emerald-400">Superagent</span> is ready</> : <>Vibe code like a <span className="gradient-text-primary">beast</span></>}
           </h1>
           <p className="text-sm sm:text-lg text-muted-foreground max-w-2xl mx-auto px-2">
-            {buildMode === "employee" ? "Delegate your project. Full autonomy. Production-ready output." : "Describe your idea. The Orchestrator assembles the optimal agent team, then reviews and deploys."}
+            {buildMode === "superagent" ? "Delegate your project. Full autonomy. Production-ready output." : "Describe your idea. The Orchestrator assembles the optimal agent team, then reviews and deploys."}
           </p>
 
           {/* Model selector + Cost tracker */}

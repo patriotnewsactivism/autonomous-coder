@@ -134,7 +134,7 @@ const GitHubConnect = ({ onFilesLoaded }: GitHubConnectProps) => {
       if (generatedFiles.length === 0) throw new Error("Could not fetch file contents");
 
       onFilesLoaded(generatedFiles, selectedRepo.fullName);
-      toast.success(`Loaded ${generatedFiles.length} files from ${selectedRepo.name} for analysis`);
+      toast.success(`Loaded ${generatedFiles.length} files from ${selectedRepo.name} as build seed`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load repository");
     } finally {
@@ -315,7 +315,7 @@ const GitHubConnect = ({ onFilesLoaded }: GitHubConnectProps) => {
                   data-testid="button-github-analyze-repo"
                 >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                  Analyze Codebase with AI
+                  Import Repository as Build Seed
                 </Button>
 
                 <div className="border-t border-border/30 pt-4">

@@ -1,4 +1,3 @@
-
 import type { Express } from "express";
 import { randomUUID } from "crypto";
 import { runWorkerJob, runParallelWorkers, spawnSubWorkers, workerBus, WorkerJob } from "./agentWorker";
@@ -7,6 +6,9 @@ import { getSessionMemory, storeMemory } from "./agentMemory";
 // Stream SSE events to client
 function sendSSE(res: any, event: string, data: any) {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+
+export function registerParallelRoutes(app: Express) {
   // ── POST: Universal AI Employee task endpoint ─────────────────────────────
   // Routes ANY task — simple or complex — to the right execution strategy
   app.post("/api/employee/task", async (req, res) => {
@@ -48,11 +50,6 @@ function sendSSE(res: any, event: string, data: any) {
     }
   });
 
-
-}
-
-export function registerParallelRoutes(app: Express) {
-
   // ── SSE: Real-time worker event stream ─────────────────────────────────────
   app.get("/api/agent/stream/:sessionId", (req, res) => {
     const { sessionId } = req.params;
@@ -68,7 +65,7 @@ export function registerParallelRoutes(app: Express) {
       "worker:spawned", "parallel:start", "parallel:done",
       "memory:stored", "sandbox:update",
       "employee:progress", "employee:classified", "employee:classifying",
-      "employee:epic:start", "employee:epic:done", "employee:done", "employee:progress", "employee:classified", "employee:classifying", "employee:epic:start", "employee:epic:done", "employee:done"
+      "employee:epic:start", "employee:epic:done", "employee:done"
     ];
 
     const handlers: Record<string, (data: any) => void> = {};

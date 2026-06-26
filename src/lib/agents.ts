@@ -283,9 +283,9 @@ export async function runAgentStreaming<T>(
 // ── Helpers ────────────────────────────────────────────────────────────────
 type TokenCb = (t: string) => void;
 
-export async function runOrchestrator(goal: string, onToken?: TokenCb) {
-  if (onToken) return runAgentStreaming<OrchestratorResult>("orchestrator", goal, {}, onToken);
-  return runAgent<OrchestratorResult>("orchestrator", goal);
+export async function runOrchestrator(goal: string, context?: unknown, onToken?: TokenCb) {
+  if (onToken) return runAgentStreaming<OrchestratorResult>("orchestrator", goal, context || {}, onToken);
+  return runAgent<OrchestratorResult>("orchestrator", goal, context);
 }
 
 export async function runStrategist(goal: string, context?: any, onToken?: TokenCb) {
