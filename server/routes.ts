@@ -384,103 +384,76 @@ Rules:
 - Make minimum necessary changes`,
 };
 
-// ── Azure OpenAI configuration ─────────────────────────────────────────────
-const AZURE_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT || "https://openaiyoutube.openai.azure.com";
-const AZURE_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-5-mini";
-const AZURE_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || "2024-02-01";
-
-// ── DeepSeek V3.2 via Azure AI Foundry ─────────────────────────────────────
-const DEEPSEEK_ENDPOINT = process.env.DEEPSEEK_ENDPOINT || "https://patri-mojrzk25-swedencentral.services.ai.azure.com/models/chat/completions?api-version=2024-05-01-preview";
+// ── DeepSeek direct API (primary) ──────────────────────────────────────────
+const DEEPSEEK_ENDPOINT = process.env.DEEPSEEK_ENDPOINT || "https://api.deepseek.com/v1/chat/completions";
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || "";
-const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "DeepSeek-V3.2";
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-chat";
 const USE_DEEPSEEK = Boolean(DEEPSEEK_API_KEY);
 
-// ── Grok 4.1 Fast Reasoning via Azure AI Foundry ──────────────────────────
-const GROK_ENDPOINT = process.env.GROK_ENDPOINT || "https://patri-mojrzk25-swedencentral.services.ai.azure.com/models/chat/completions?api-version=2024-05-01-preview";
-const GROK_API_KEY = process.env.GROK_API_KEY || "";
-const GROK_MODEL = process.env.GROK_MODEL || "grok-4-1-fast-reasoning";
-const USE_GROK = Boolean(GROK_API_KEY);
+// ── Groq API (fast fallback) ───────────────────────────────────────────────
+const GROQ_ENDPOINT = process.env.GROQ_ENDPOINT || "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
+const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+const USE_GROQ = Boolean(GROQ_API_KEY);
 
-// Only enable Azure OpenAI if user explicitly sets a deployment name
-const USE_AZURE_OPENAI = Boolean(process.env.AZURE_OPENAI_DEPLOYMENT && process.env.AZURE_OPENAI_API_KEY);
+// Default model: DeepSeek (best for coding) > Groq (fast fallback)
+const DEFAULT_MODEL = USE_DEEPSEEK ? DEEPSEEK_MODEL : (USE_GROQ ? GROQ_MODEL : DEEPSEEK_MODEL);
 
-// Default model: DeepSeek (cheapest) > Grok > Azure OpenAI
-const DEFAULT_MODEL = USE_DEEPSEEK ? DEEPSEEK_MODEL : (USE_GROK ? GROK_MODEL : AZURE_DEPLOYMENT);
-
-// Smart fallback chain — tries next available provider instead of always Azure
+// Smart fallback chain — tries next available provider
 function getFallbackModel(currentModel: string): string | null {
   const chain: string[] = [];
   if (USE_DEEPSEEK) chain.push(DEEPSEEK_MODEL);
-  if (USE_GROK) chain.push(GROK_MODEL);
-  if (USE_AZURE_OPENAI) chain.push(AZURE_DEPLOYMENT);
+  if (USE_GROQ) chain.push(GROQ_MODEL);
   const idx = chain.indexOf(currentModel);
   return (idx >= 0 && idx < chain.length - 1) ? chain[idx + 1] : null;
 }
 
 // Model pricing per 1M tokens [input, output] in USD
 const MODEL_PRICING: Record<string, [number, number]> = {
-  "DeepSeek-V3.2": [0.28, 0.42],
-  "grok-4-1-fast-reasoning": [0.20, 0.50],
-  "gpt-5-mini": [0.25, 2.00],
-  "gpt-4o": [2.50, 10.00],
-  "gpt-4o-mini": [0.15, 0.60],
-  "gpt-4": [30.00, 60.00],
-  "gpt-4-turbo": [10.00, 30.00],
-  "gpt-35-turbo": [0.50, 1.50],
-  "o1-mini": [1.10, 4.40],
-  "o1": [15.00, 60.00],
+  "deepseek-chat": [0.14, 0.28],
+  "deepseek-reasoner": [0.55, 2.19],
+  "llama-3.3-70b-versatile": [0.59, 0.79],
+  "llama-3.1-8b-instant": [0.05, 0.08],
+  "mixtral-8x7b-32768": [0.24, 0.24],
+  "gemma2-9b-it": [0.20, 0.20],
 };
 
 // Which provider handles which model
-type ModelProvider = "azure-foundry-deepseek" | "azure-foundry-grok" | "azure-openai";
+type ModelProvider = "deepseek" | "groq";
 
 function getModelProvider(model: string): ModelProvider {
-  if (model === DEEPSEEK_MODEL || model.toLowerCase().includes("deepseek")) return "azure-foundry-deepseek";
-  if (model === GROK_MODEL || model.toLowerCase().includes("grok")) return "azure-foundry-grok";
-  return "azure-openai";
+  if (model.toLowerCase().includes("deepseek")) return "deepseek";
+  // Everything else goes to Groq (Llama, Mixtral, Gemma, etc.)
+  return "groq";
 }
 
 function getModelEndpoint(model: string): { url: string; headers: Record<string, string> } {
   const provider = getModelProvider(model);
   switch (provider) {
-    case "azure-foundry-deepseek":
+    case "deepseek":
       return {
         url: DEEPSEEK_ENDPOINT,
         headers: { "Authorization": `Bearer ${DEEPSEEK_API_KEY}`, "Content-Type": "application/json" },
       };
-    case "azure-foundry-grok":
+    case "groq":
+    default:
       return {
-        url: GROK_ENDPOINT,
-        headers: { "Authorization": `Bearer ${GROK_API_KEY}`, "Content-Type": "application/json" },
+        url: GROQ_ENDPOINT,
+        headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
       };
-    default: {
-      const dep = model || AZURE_DEPLOYMENT;
-      return {
-        url: `${AZURE_ENDPOINT}/openai/deployments/${dep}/chat/completions?api-version=${AZURE_API_VERSION}`,
-        headers: { "api-key": process.env.AZURE_OPENAI_API_KEY || "", "Content-Type": "application/json" },
-      };
-    }
   }
 }
 
 // Available models (only list providers that are actually configured)
 function getAvailableModels(): string[] {
   const models: string[] = [];
-  if (USE_DEEPSEEK) models.push(DEEPSEEK_MODEL);
-  if (USE_GROK) models.push(GROK_MODEL);
-  // Only include Azure OpenAI models if explicitly configured
-  if (USE_AZURE_OPENAI) {
-    const extra = process.env.AZURE_OPENAI_MODELS || "";
-    const azureModels = extra.split(",").map(s => s.trim()).filter(Boolean);
-    if (!azureModels.includes(AZURE_DEPLOYMENT)) azureModels.unshift(AZURE_DEPLOYMENT);
-    models.push(...azureModels);
+  if (USE_DEEPSEEK) {
+    models.push("deepseek-chat", "deepseek-reasoner");
+  }
+  if (USE_GROQ) {
+    models.push("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it");
   }
   return models;
-}
-
-function getAzureUrl(deployment?: string): string {
-  const dep = deployment || AZURE_DEPLOYMENT;
-  return `${AZURE_ENDPOINT}/openai/deployments/${dep}/chat/completions?api-version=${AZURE_API_VERSION}`;
 }
 
 interface AIUsage {
@@ -493,7 +466,7 @@ interface AIUsage {
 }
 
 function calcCost(model: string, promptTokens: number, completionTokens: number): number {
-  const pricing = MODEL_PRICING[model] || MODEL_PRICING[AZURE_DEPLOYMENT] || [0.15, 0.60];
+  const pricing = MODEL_PRICING[model] || MODEL_PRICING[DEFAULT_MODEL] || [0.15, 0.60];
   return (promptTokens / 1_000_000) * pricing[0] + (completionTokens / 1_000_000) * pricing[1];
 }
 
@@ -504,23 +477,16 @@ export async function callAI(
 ): Promise<AIUsage> {
   const deployment = model || DEFAULT_MODEL;
   const { url, headers } = getModelEndpoint(deployment);
-  const provider = getModelProvider(deployment);
 
-  // For Azure AI Foundry models (DeepSeek, Grok), include model in body
+  // Both DeepSeek and Groq use OpenAI-compatible format
   const bodyPayload: any = {
+    model: deployment,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },
     ],
     max_tokens: 4096,
   };
-  if (provider !== "azure-openai") {
-    bodyPayload.model = deployment;
-  } else {
-    // Azure OpenAI uses max_completion_tokens
-    delete bodyPayload.max_tokens;
-    bodyPayload.max_completion_tokens = 4096;
-  }
 
   const response = await fetch(url, {
     method: "POST",
@@ -566,9 +532,10 @@ export async function callAIStream(
 ): Promise<AIUsage> {
   const deployment = model || DEFAULT_MODEL;
   const { url, headers } = getModelEndpoint(deployment);
-  const provider = getModelProvider(deployment);
 
+  // Both DeepSeek and Groq use OpenAI-compatible streaming format
   const bodyPayload: any = {
+    model: deployment,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },
@@ -577,12 +544,6 @@ export async function callAIStream(
     stream: true,
     stream_options: { include_usage: true },
   };
-  if (provider !== "azure-openai") {
-    bodyPayload.model = deployment;
-  } else {
-    delete bodyPayload.max_tokens;
-    bodyPayload.max_completion_tokens = 4096;
-  }
 
   const response = await fetch(url, {
     method: "POST",
