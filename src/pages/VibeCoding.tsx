@@ -400,21 +400,18 @@ const VibeCoding = () => {
         const onObserveFixToken = addStreamingMessage("fixer");
 
         try {
+          const previewIssues = currentErrors.map((e, i) => ({
+            id: `preview-error-${i}`,
+            severity: "critical" as const,
+            type: "bug" as const,
+            file: "preview",
+            message: e,
+            suggestion: "Fix this runtime error so the preview renders correctly",
+          }));
+
           const observeFix = await runFixer(
+            previewIssues,
             allFiles,
-            {
-              issues: currentErrors.map((e, i) => ({
-                id: `preview-error-${i}`,
-                severity: "critical" as const,
-                type: "bug" as const,
-                file: "preview",
-                message: e,
-                suggestion: "Fix this runtime error so the preview renders correctly",
-              })),
-              overallScore: 0,
-              strengths: [],
-              summary: `${currentErrors.length} runtime errors observed in live preview`,
-            },
             onObserveFixToken
           );
           tick();

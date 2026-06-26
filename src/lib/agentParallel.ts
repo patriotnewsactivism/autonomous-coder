@@ -5,7 +5,9 @@ export type WorkerStatus = "queued" | "running" | "done" | "failed" | "retrying"
 export interface WorkerEvent {
   type: "worker:status" | "worker:thinking" | "worker:eval" | "worker:done"
       | "worker:failed" | "worker:retrying" | "worker:spawned"
-      | "parallel:start" | "parallel:done" | "memory:stored" | "sandbox:update";
+      | "parallel:start" | "parallel:done" | "memory:stored" | "sandbox:update"
+      | "superagent:progress" | "superagent:classified" | "superagent:classifying"
+      | "superagent:epic:start" | "superagent:epic:done" | "superagent:done";
   jobId?: string;
   agent?: string;
   sessionId?: string;
@@ -18,6 +20,8 @@ export interface WorkerEvent {
   error?: string;
   totalAgents?: number;
   avgScore?: number;
+  message?: string;
+  classification?: any;
 }
 
 export interface ParallelBuildResult {

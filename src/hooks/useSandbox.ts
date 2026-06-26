@@ -193,6 +193,22 @@ export function useSandbox() {
       }
     });
 
+    es.addEventListener("superagent:progress", (e: MessageEvent) => {
+      const ev: WorkerEvent = JSON.parse(e.data);
+      log(`📋 ${ev.message || "Superagent progress"}`);
+    });
+
+    es.addEventListener("superagent:classified", (e: MessageEvent) => {
+      const ev: WorkerEvent = JSON.parse(e.data);
+      log(`📋 Superagent classified: ${ev.classification?.title || "unknown"}`);
+    });
+
+    es.addEventListener("superagent:done", (e: MessageEvent) => {
+      const ev: WorkerEvent = JSON.parse(e.data);
+      setState(s => ({ ...s, status: "done" }));
+      log(`🏁 Superagent done — ${ev.result?.summary || "task complete"}`);
+    });
+
     return () => { es.close(); esRef.current = null; };
   }, [log]);
 

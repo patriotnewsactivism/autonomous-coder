@@ -11,7 +11,7 @@ function sendSSE(res: any, event: string, data: any) {
 export function registerParallelRoutes(app: Express) {
   // ── POST: Universal AI Employee task endpoint ─────────────────────────────
   // Routes ANY task — simple or complex — to the right execution strategy
-  app.post("/api/employee/task", async (req, res) => {
+  app.post("/api/superagent/task", async (req, res) => {
     try {
       const { goal, model, sessionId } = req.body;
       if (!goal) return res.status(400).json({ error: "goal required" });
@@ -24,25 +24,25 @@ export function registerParallelRoutes(app: Express) {
         model,
         sessionId: sid,
         onProgress: (msg) => {
-          workerBus.emit("employee:progress", { sessionId: sid, message: msg });
+          workerBus.emit("superagent:progress", { sessionId: sid, message: msg });
         },
         onClassified: (classification) => {
-          workerBus.emit("employee:classified", { sessionId: sid, classification });
+          workerBus.emit("superagent:classified", { sessionId: sid, classification });
         },
       });
 
       res.json(result);
     } catch (err: any) {
-      res.status(500).json({ error: err?.message || "employee task failed" });
+      res.status(500).json({ error: err?.message || "superagent task failed" });
     }
   });
 
   // ── GET: Classify a task without executing it ─────────────────────────────
-  app.get("/api/employee/classify", async (req, res) => {
+  app.get("/api/superagent/classify", async (req, res) => {
     try {
       const { goal, model } = req.query as Record<string, string>;
       if (!goal) return res.status(400).json({ error: "goal required" });
-      const { classifyTask } = await import("./employeeAgent");
+      const { classifyTask } = await import("./superagent");
       const classification = await classifyTask(goal, model);
       res.json(classification);
     } catch (err: any) {
