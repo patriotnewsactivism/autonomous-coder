@@ -533,7 +533,7 @@ setIsRunning(false);
                   ))}
                   {availableModels.length <= 1 && (
                     <div className="px-3 py-2 text-[10px] text-muted-foreground">
-                      Deploy more models in Azure to add them here
+                      Configure more providers in .env to add models here
                     </div>
                   )}
                 </div>
