@@ -1,0 +1,11 @@
+{
+  "projectId": "d4e125b2-9b12-4355-9905-e892d580e1c8",
+  "pkg": "autonomous-coder",
+  "shape": "package",
+  "tsconfig": "tsconfig.app.json",
+  "cssEntry": "src/index.css",
+  "srcDir": "src/components",
+  "componentSrcMap": {
+    "useToast": null
+  }
+}
