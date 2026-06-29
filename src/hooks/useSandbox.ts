@@ -11,6 +11,7 @@ export type SandboxStatus =
   | "retrying"
   | "observing"   // NEW: agent is reading preview errors
   | "correcting"  // NEW: agent is fixing based on what it observed
+  | "searching"   // NEW: agent is live-searching the web
   | "done"
   | "error";
 
@@ -133,6 +134,17 @@ export function useSandbox() {
       const ev: WorkerEvent = JSON.parse(e.data);
       setState(s => ({ ...s, status: "retrying", workerEvents: [...s.workerEvents, ev] }));
       log(`🔄 [${ev.agent}] retrying (attempt ${ev.attempt}): ${ev.reason || ""}`);
+    });
+
+    es.addEventListener("worker:searching", (e: MessageEvent) => {
+      const ev: WorkerEvent = JSON.parse(e.data);
+      setState(s => ({ ...s, status: "searching", workerEvents: [...s.workerEvents, ev] }));
+      log(`🔍 [${ev.agent}] live searching: ${(ev as any).queries?.slice(0,2).join(" · ") || "web"}`);
+    });
+
+    es.addEventListener("autoheal:searching", (e: MessageEvent) => {
+      const ev = JSON.parse(e.data);
+      log(`🌐 AutoHeal searching: "${(ev as any).query}"`);
     });
 
     es.addEventListener("worker:done", (e: MessageEvent) => {

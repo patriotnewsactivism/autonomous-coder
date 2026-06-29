@@ -1383,5 +1383,29 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
 
+  // ── Live Web Search endpoint ────────────────────────────────────────────────
+  app.post("/api/search", async (req, res) => {
+    try {
+      const { query, maxResults, agentType } = req.body;
+      if (!query) return res.status(400).json({ error: "query required" });
+      const { webSearch, buildResearchQueries, multiSearch } = await import("./webSearch.js");
+      if (agentType) {
+        const queries = buildResearchQueries(query, agentType);
+        const combined = await multiSearch(queries, maxResults || 4);
+        return res.json({ formatted: combined, queries });
+      }
+      const bundle = await webSearch(query, maxResults || 6);
+      res.json(bundle);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Search failed" });
+    }
+  });
+
+  app.get("/api/search/status", async (_req, res) => {
+    const { isTavilyEnabled } = await import("./webSearch.js");
+    res.json({ tavily: isTavilyEnabled(), ddg: true });
+  });
+
+
 
 }

@@ -3,6 +3,7 @@ import { callAI, systemPrompts, parseJsonResponse } from "./routes";
 import { storeMemory, retrieveMemory } from "./agentMemory";
 import { EventEmitter } from "events";
 import { getSmartContext } from "./autoLearn.js";
+import { buildResearchQueries, multiSearch, isTavilyEnabled } from "./webSearch.js";
 
 export const workerBus = new EventEmitter();
 workerBus.setMaxListeners(200);
@@ -84,7 +85,20 @@ export async function runWorkerJob(job: WorkerJob): Promise<WorkerResult> {
       const prompt = systemPrompts[job.agent as keyof typeof systemPrompts] || systemPrompts.builder;
       // Inject accumulated cross-session wisdom
       const smartCtx = await getSmartContext(job.goal, job.agent);
-      const userMsg = `GOAL: ${job.goal}\n\nCONTEXT: ${JSON.stringify(job.context, null, 2)}${memoryContext}${smartCtx}${
+
+      // Live web search for research-heavy agents
+      const searchAgents = ["researcher", "orchestrator", "fixer", "autohealer"];
+      let liveSearchCtx = "";
+      if (searchAgents.includes(job.agent)) {
+        try {
+          const queries = buildResearchQueries(job.goal, job.agent);
+          liveSearchCtx = await multiSearch(queries, 4);
+          if (liveSearchCtx) {
+            workerBus.emit("worker:searching", { jobId: job.id, agent: job.agent, sessionId: job.sessionId, queries });
+          }
+        } catch { /* non-critical */ }
+      }
+      const userMsg = `GOAL: ${job.goal}\n\nCONTEXT: ${JSON.stringify(job.context, null, 2)}${memoryContext}${smartCtx}${liveSearchCtx}${
         attempts > 1 ? `\n\nPREVIOUS ATTEMPT FAILED EVAL. Issues: ${lastError}. Try harder.` : ""
       }`;
 

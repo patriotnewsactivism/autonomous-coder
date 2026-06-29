@@ -679,6 +679,16 @@ const VibeCoding = () => {
                   <RotateCcw className="h-2.5 w-2.5 ml-1 opacity-50 hover:opacity-100" />
                 </button>
               </div>
+              {/* Live Search Status */}
+              {searchStatus && (
+                <div className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border ${
+                  searchStatus.tavily
+                    ? "text-cyan-400 bg-cyan-500/10 border-cyan-500/20"
+                    : "text-muted-foreground bg-muted/30 border-border/30"
+                }`}>
+                  <span>{searchStatus.tavily ? "🔍 Live Search" : "🔍 DDG"}</span>
+                </div>
+              )}
               {autoSaved && (
                 <span className="flex items-center gap-1 text-[11px] text-emerald-400">
                   <Save className="h-3 w-3" /> Saved

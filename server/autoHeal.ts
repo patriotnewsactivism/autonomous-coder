@@ -10,6 +10,7 @@
 
 import { callAI, parseJsonResponse } from "./routes.js";
 import { storeMemory, retrieveMemory } from "./agentMemory.js";
+import { webSearch, formatSearchResults } from "./webSearch.js";
 import { runWorkerJob, workerBus, WorkerJob } from "./agentWorker.js";
 import { randomUUID } from "crypto";
 
@@ -99,12 +100,23 @@ export async function runAutoHeal(ctx: HealContext): Promise<HealResult> {
     cycles++;
     workerBus.emit("autoheal:cycle", { sessionId, cycle: cycles, errors: errors.slice(0, 3) });
 
+    // Step 0: Search for error solutions live
+    let errorSearchCtx = "";
+    try {
+      const errorQuery = errors.slice(0, 2).join(" ").slice(0, 120);
+      const searchBundle = await webSearch(`${errorQuery} fix solution`, 4);
+      if (searchBundle.results.length > 0) {
+        errorSearchCtx = formatSearchResults([searchBundle]);
+        workerBus.emit("autoheal:searching", { sessionId, query: errorQuery });
+      }
+    } catch { /* non-critical */ }
+
     // Step 1: Diagnose
     let diagnosis: { rootCause: string; filesToPatch: string[]; canFix: boolean };
     try {
       const { content } = await callAI(
         DIAGNOSE_PROMPT,
-        `GOAL: ${goal}\nERRORS:\n${errors.join("\n")}\nFILES:\n${files.map(f => `// ${f.path}`).join("\n")}${memCtx}`,
+        `GOAL: ${goal}\nERRORS:\n${errors.join("\n")}\nFILES:\n${files.map(f => `// ${f.path}`).join("\n")}${memCtx}${errorSearchCtx}`,
         model
       );
       diagnosis = parseJsonResponse(content);
