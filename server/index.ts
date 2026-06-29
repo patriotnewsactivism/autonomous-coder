@@ -1,6 +1,6 @@
+import "./load-env.js";
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
-import { registerRoutes } from "./routes";
 import { registerParallelRoutes } from "./parallelRoutes";
 import { setupVite, serveStatic, log } from "./vite";
 
@@ -40,6 +40,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  const routesModule = await import("./routes.js");
+  console.log("[index] routes module loaded, registerRoutes:", typeof routesModule.registerRoutes);
+  const { registerRoutes } = routesModule;
   await registerRoutes(app);
   registerParallelRoutes(app);
 

@@ -8,6 +8,8 @@ import {
   isProviderActive, type ProviderName,
 } from "./providers";
 
+console.log("[routes] module evaluating, DEEPSEEK_API_KEY present:", Boolean(process.env.DEEPSEEK_API_KEY));
+
 interface Issue {
   id: string;
   severity: "error" | "warning" | "info";
@@ -390,10 +392,87 @@ Rules:
 - Make minimum necessary changes`,
 };
 
+<<<<<<< Updated upstream
 // ── Multi-provider AI gateway ──────────────────────────────────────────────
 // All provider logic is in server/providers.ts — supports DeepSeek, Groq,
 // Google Gemini, Cerebras, GitHub Models, and Cohere with auto-fallback.
 const DEFAULT_MODEL = getDefaultModel();
+=======
+// ── DeepSeek direct API (primary) ──────────────────────────────────────────
+const DEEPSEEK_ENDPOINT = process.env.DEEPSEEK_ENDPOINT || "https://api.deepseek.com/v1/chat/completions";
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || "";
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-chat";
+const USE_DEEPSEEK = Boolean(DEEPSEEK_API_KEY);
+
+// ── Groq API (fast fallback) ───────────────────────────────────────────────
+const GROQ_ENDPOINT = process.env.GROQ_ENDPOINT || "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
+const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+const USE_GROQ = Boolean(GROQ_API_KEY);
+console.log("[routes] USE_DEEPSEEK:", USE_DEEPSEEK, "USE_GROQ:", USE_GROQ, "DEEPSEEK_API_KEY length:", DEEPSEEK_API_KEY.length, "GROQ_API_KEY length:", GROQ_API_KEY.length);
+
+// Default model: DeepSeek (best for coding) > Groq (fast fallback)
+const DEFAULT_MODEL = USE_DEEPSEEK ? DEEPSEEK_MODEL : (USE_GROQ ? GROQ_MODEL : DEEPSEEK_MODEL);
+
+// Smart fallback chain — tries next available provider
+function getFallbackModel(currentModel: string): string | null {
+  const chain: string[] = [];
+  if (USE_DEEPSEEK) chain.push(DEEPSEEK_MODEL);
+  if (USE_GROQ) chain.push(GROQ_MODEL);
+  const idx = chain.indexOf(currentModel);
+  return (idx >= 0 && idx < chain.length - 1) ? chain[idx + 1] : null;
+}
+
+// Model pricing per 1M tokens [input, output] in USD
+const MODEL_PRICING: Record<string, [number, number]> = {
+  "deepseek-chat": [0.14, 0.28],
+  "deepseek-reasoner": [0.55, 2.19],
+  "llama-3.3-70b-versatile": [0.59, 0.79],
+  "llama-3.1-8b-instant": [0.05, 0.08],
+  "mixtral-8x7b-32768": [0.24, 0.24],
+  "gemma2-9b-it": [0.20, 0.20],
+};
+
+// Which provider handles which model
+type ModelProvider = "deepseek" | "groq";
+
+function getModelProvider(model: string): ModelProvider {
+  if (model.toLowerCase().includes("deepseek")) return "deepseek";
+  // Everything else goes to Groq (Llama, Mixtral, Gemma, etc.)
+  return "groq";
+}
+
+function getModelEndpoint(model: string): { url: string; headers: Record<string, string> } {
+  const provider = getModelProvider(model);
+  switch (provider) {
+    case "deepseek":
+      return {
+        url: DEEPSEEK_ENDPOINT,
+        headers: { "Authorization": `Bearer ${DEEPSEEK_API_KEY}`, "Content-Type": "application/json" },
+      };
+    case "groq":
+    default:
+      return {
+        url: GROQ_ENDPOINT,
+        headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
+      };
+  }
+}
+
+// Available models (only list providers that are actually configured)
+function getAvailableModels(): string[] {
+  console.log("[routes] getAvailableModels called, USE_DEEPSEEK:", USE_DEEPSEEK, "USE_GROQ:", USE_GROQ);
+  console.log("[routes] DEEPSEEK_API_KEY present:", Boolean(process.env.DEEPSEEK_API_KEY));
+  const models: string[] = [];
+  if (USE_DEEPSEEK) {
+    models.push("deepseek-chat", "deepseek-reasoner");
+  }
+  if (USE_GROQ) {
+    models.push("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it");
+  }
+  return models;
+}
+>>>>>>> Stashed changes
 
 interface AIUsage {
   content: string;
@@ -594,6 +673,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.get("/api/models", (_req, res) => {
+<<<<<<< Updated upstream
     const modelList = getAvailableModels();
     const modelIds = modelList.map(m => m.id);
     const pricing = getModelPricing();
@@ -609,6 +689,18 @@ export async function registerRoutes(app: Express): Promise<void> {
         contextWindow: m.contextWindow,
       })),
     });
+=======
+    console.log("[routes] /api/models handler hit");
+    console.log("[routes] USE_DEEPSEEK:", USE_DEEPSEEK, "USE_GROQ:", USE_GROQ);
+    const models = getAvailableModels();
+    console.log("[routes] models:", models);
+    const pricing: Record<string, { input: number; output: number }> = {};
+    for (const m of models) {
+      const p = MODEL_PRICING[m] || [0.15, 0.60];
+      pricing[m] = { input: p[0], output: p[1] };
+    }
+    res.json({ models, default: DEFAULT_MODEL, pricing });
+>>>>>>> Stashed changes
   });
 
   app.post("/api/ai-agent", async (req, res) => {

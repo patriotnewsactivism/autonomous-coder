@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "cross-env NODE_ENV=development npx tsx server/index.ts",
+    "dev": "cross-env NODE_ENV=development npx tsx --env-file=.env server/index.ts",
     "build": "npx vite build && npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index.js",
     "start": "NODE_ENV=production node dist/index.js",
     "lint": "eslint .",
@@ -48,6 +48,7 @@
     "cmdk": "^1.1.1",
     "cors": "^2.8.5",
     "date-fns": "^3.6.0",
+    "dotenv": "^17.4.2",
     "drizzle-kit": "^0.18.1",
     "drizzle-orm": "^0.45.1",
     "drizzle-zod": "^0.8.3",

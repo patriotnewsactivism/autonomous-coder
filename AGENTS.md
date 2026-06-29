@@ -171,7 +171,9 @@ There is **no test runner currently configured**. The project has no test script
 
 ## Notes for AI Agents
 
-- The project root is `C:/autonomous-coder`. Do not access files outside the working directory.
+- Always work within the repository root. Do not access files outside the working directory.
 - Do not run `git commit`, `git push`, or other git mutations unless explicitly asked.
 - Verify changes by running `npm run lint` and `npm run build` when you modify code.
+- There is **no `.gitignore`** at the project root. Before committing, ensure `dist/`, `node_modules/`, and `.env` are excluded.
 - Keep changes minimal and consistent with the existing dark-themed, Tailwind-first style.
+- `wouter` is listed as a dependency but is **unused** by `src/` or `server/`; do not import it.
