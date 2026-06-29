@@ -1,25 +1,24 @@
+# ── Stage 1: Build ────────────────────────────────────────────────────────────
 FROM node:22-slim AS builder
 
 WORKDIR /app
 
-# Install all dependencies including platform-specific native binaries (esbuild needs them)
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Copy source and build
 COPY . .
 RUN npm run build
 
-# ── Production image ──────────────────────────────────────────────────────────
+# ── Stage 2: Production ───────────────────────────────────────────────────────
 FROM node:22-slim
 
 WORKDIR /app
 
-# Install only production dependencies (keep optional deps so esbuild binary is available)
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+# Install ALL deps (including optional) so esbuild native binary is present
+RUN npm ci --include=optional
 
-# Copy built artifacts from builder
+# Copy built artifacts
 COPY --from=builder /app/dist ./dist
 
 ENV NODE_ENV=production
