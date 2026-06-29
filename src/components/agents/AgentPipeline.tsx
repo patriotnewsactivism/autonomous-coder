@@ -61,9 +61,9 @@ const AgentPipeline = ({ currentAgent, completedAgents, agentSequence }: AgentPi
         {pipeline.map((agent, i) => renderAgent(agent, i, i === pipeline.length - 1, false))}
       </div>
 
-      {/* Mobile - scrollable */}
-      <div className="sm:hidden py-4 overflow-x-auto">
-        <div className="flex items-center gap-1 px-2 w-max min-w-full justify-start">
+      {/* Mobile - wrapped */}
+      <div className="sm:hidden py-3">
+        <div className="flex items-center gap-1 flex-wrap justify-center">
           {pipeline.map((agent, i) => renderAgent(agent, i, i === pipeline.length - 1, true))}
         </div>
       </div>

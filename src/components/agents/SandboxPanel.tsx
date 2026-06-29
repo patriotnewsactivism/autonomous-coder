@@ -311,9 +311,9 @@ export default function SandboxPanel({
             <button key={t.id} onClick={() => setTab(t.id)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium transition-all ${tab === t.id ? "bg-cyan-500/15 text-cyan-400 shadow-sm" : "text-slate-500 hover:text-slate-300 hover:bg-white/5"}`}>
               <t.icon className="h-3 w-3" />
-              {t.label}
+              <span className="hidden xs:inline">{t.label}</span>
               {t.badge !== undefined && (
-                <span className={`ml-0.5 px-1 rounded-full text-[9px] ${tab === t.id ? "bg-cyan-500/30 text-cyan-300" : "bg-slate-700 text-slate-400"}`}>
+                <span className={`ml-0.5 px-1 rounded-full text-[10px] ${tab === t.id ? "bg-cyan-500/30 text-cyan-300" : "bg-slate-700 text-slate-400"}`}>
                   {t.badge}
                 </span>
               )}

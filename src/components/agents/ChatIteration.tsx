@@ -236,13 +236,13 @@ const ChatIteration = ({ files, onFilesUpdated, isAgentRunning }: ChatIterationP
             <div className="flex items-center justify-between px-3 py-1.5 bg-muted/30 border-b border-border/30">
               <div className="flex items-center gap-1.5">
                 <GitCompare className="h-3 w-3 text-muted-foreground" />
-                <span className="text-[10px] font-mono text-muted-foreground truncate max-w-[200px]">{diffView.file}</span>
+                <span className="text-[10px] font-mono text-muted-foreground truncate max-w-[120px] sm:max-w-[200px]">{diffView.file}</span>
               </div>
               <button onClick={() => setDiffView(null)}>
                 <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
               </button>
             </div>
-            <div className="max-h-32 overflow-y-auto bg-background/50 p-2 font-mono text-[9px] sm:text-[10px]">
+            <div className="max-h-32 overflow-y-auto bg-background/50 p-2 font-mono text-[10px] sm:text-[11px]">
               {diffView.diff.map((line, i) => (
                 <div key={i} className={line.type === "added" ? "text-emerald-400 bg-emerald-500/5" : "text-rose-400 bg-rose-500/5"}>
                   {line.type === "added" ? "+" : "-"} {line.content || " "}
@@ -254,7 +254,7 @@ const ChatIteration = ({ files, onFilesUpdated, isAgentRunning }: ChatIterationP
       </AnimatePresence>
 
       {/* Chat messages */}
-      <div className="space-y-3 max-h-[300px] overflow-y-auto mb-4 pr-1">
+      <div className="space-y-3 max-h-[250px] sm:max-h-[300px] overflow-y-auto mb-4 pr-1">
         {messages.length === 0 ? (
           <div className="text-center py-6 border border-dashed border-border/40 rounded-lg">
             <Bot className="h-6 w-6 mx-auto mb-2 text-muted-foreground/50" />
@@ -289,7 +289,7 @@ const ChatIteration = ({ files, onFilesUpdated, isAgentRunning }: ChatIterationP
                   {msg.changedFiles && msg.changedFiles.length > 0 && (
                     <div className="flex flex-wrap gap-1 px-1">
                       {msg.changedFiles.map((f) => (
-                        <span key={f} className="text-[9px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-mono">
+                        <span key={f} className="text-[10px] sm:text-[11px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-mono">
                           {f.split("/").pop()}
                         </span>
                       ))}
@@ -317,7 +317,7 @@ const ChatIteration = ({ files, onFilesUpdated, isAgentRunning }: ChatIterationP
         />
         <Button size="sm" onClick={handleSubmit}
           disabled={!input.trim() || isRefining || isAgentRunning || files.length === 0}
-          className="h-[58px] px-3" data-testid="button-chat-submit"
+          className="self-stretch px-3" data-testid="button-chat-submit"
         >
           {isRefining ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>

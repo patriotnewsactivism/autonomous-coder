@@ -199,14 +199,14 @@ const VibeInput = ({ onSubmit, isRunning, onStop }: VibeInputProps) => {
                   className={`flex items-center gap-1 text-[10px] sm:text-xs transition-colors ${isListening ? "text-rose-400 animate-pulse" : "text-muted-foreground hover:text-primary"}`}
                   title={isListening ? "Stop listening" : "Speak your idea"}>
                   {isListening ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
-                  <span className="hidden sm:inline">{isListening ? "Listening..." : "Voice"}</span>
+                  <span className="hidden xs:inline">{isListening ? "Listening..." : "Voice"}</span>
                 </button>
               )}
               {mode === "vibe" && (
                 <button type="button" onClick={() => setShowTemplates((p) => !p)}
                   className="flex items-center gap-1 text-[10px] sm:text-xs text-muted-foreground hover:text-primary transition-colors">
                   <Lightbulb className="h-3 w-3" />
-                  <span className="hidden sm:inline">Templates</span>
+                  <span className="hidden xs:inline">Templates</span>
                   {showTemplates ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                 </button>
               )}
@@ -241,7 +241,7 @@ const VibeInput = ({ onSubmit, isRunning, onStop }: VibeInputProps) => {
                 size="sm"
                 className={`gap-2 h-8 px-3 text-xs ${mode === "superagent" ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "glow-button"}`}>
                 {mode === "superagent" ? <Bot className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
-                <span className="hidden sm:inline">{mode === "superagent" ? "Deploy Superagent" : "Start Building"}</span>
+                <span className="hidden xs:inline">{mode === "superagent" ? "Deploy Superagent" : "Start Building"}</span>
                 <span className="sm:hidden">{mode === "superagent" ? "Deploy" : "Build"}</span>
               </Button>
             )}

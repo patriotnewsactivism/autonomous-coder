@@ -178,7 +178,7 @@ const RepoImport = ({ onFilesLoaded }: RepoImportProps) => {
               <button
                 key={ex}
                 onClick={() => setUrl(ex)}
-                className="text-[10px] sm:text-xs px-2 py-1 rounded-md border border-border/30 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all"
+                className="text-[10px] sm:text-xs px-2 py-1.5 rounded-md border border-border/30 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all"
               >
                 {ex.replace("https://github.com/", "")}
               </button>

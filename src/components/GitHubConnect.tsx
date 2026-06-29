@@ -210,7 +210,7 @@ const GitHubConnect = ({ onFilesLoaded }: GitHubConnectProps) => {
             <div className="flex gap-1 p-1 rounded-lg bg-muted/40 mb-4">
               <button
                 onClick={() => setAuthMode("username")}
-                className={`flex-1 text-[10px] sm:text-xs py-1.5 rounded-md font-medium transition-all ${
+                className={`flex-1 text-[10px] sm:text-xs py-2 rounded-md font-medium transition-all ${
                   authMode === "username" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
                 }`}
               >
@@ -218,7 +218,7 @@ const GitHubConnect = ({ onFilesLoaded }: GitHubConnectProps) => {
               </button>
               <button
                 onClick={() => setAuthMode("token")}
-                className={`flex-1 text-[10px] sm:text-xs py-1.5 rounded-md font-medium transition-all ${
+                className={`flex-1 text-[10px] sm:text-xs py-2 rounded-md font-medium transition-all ${
                   authMode === "token" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
                 }`}
               >
@@ -300,7 +300,7 @@ const GitHubConnect = ({ onFilesLoaded }: GitHubConnectProps) => {
                 placeholder="Search repositories..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 text-xs sm:text-sm h-8"
+                className="pl-8 text-xs sm:text-sm h-9"
                 data-testid="input-github-search"
               />
             </div>
@@ -396,7 +396,7 @@ const GitHubConnect = ({ onFilesLoaded }: GitHubConnectProps) => {
                       value={prNumber}
                       onChange={(e) => setPrNumber(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && analyzePR()}
-                      className="text-xs sm:text-sm flex-1 h-8"
+                      className="text-xs sm:text-sm flex-1 h-9"
                       data-testid="input-pr-number"
                     />
                     <Button
@@ -404,7 +404,7 @@ const GitHubConnect = ({ onFilesLoaded }: GitHubConnectProps) => {
                       variant="outline"
                       onClick={analyzePR}
                       disabled={!prNumber.trim() || loading}
-                      className="h-8"
+                      className="h-9"
                       data-testid="button-analyze-pr"
                     >
                       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Review PR"}

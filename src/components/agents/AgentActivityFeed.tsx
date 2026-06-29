@@ -66,7 +66,7 @@ function WorkerEventRow({ event }: { event: WorkerEvent }) {
     >
       <div className="mt-0.5 flex-shrink-0">{icons[event.type] || <Activity className="h-3 w-3 text-slate-400" />}</div>
       <div className="flex-1 min-w-0">
-        <p className="text-[11px] text-slate-300 leading-relaxed truncate">{labels[event.type] || event.type}</p>
+        <p className="text-[11px] sm:text-xs text-slate-300 leading-relaxed truncate">{labels[event.type] || event.type}</p>
         {event.type === "worker:eval" && event.score !== undefined && (
           <div className="mt-1 flex items-center gap-1">
             {Array.from({ length: 10 }).map((_, i) => (
@@ -151,15 +151,15 @@ const AgentActivityFeed = ({ messages, workerEvents = [], isRunning }: AgentActi
               >
                 <div className="flex items-center gap-2 mb-1.5">
                   <AgentAvatar agent={msg.agent} size="sm" isActive={msg.type === "streaming"} />
-                  <span className={`text-[11px] font-semibold ${config.color}`}>{config.label}</span>
-                  <span className="text-[10px] text-slate-600 ml-auto">
+                  <span className={`text-[11px] sm:text-xs font-semibold ${config.color}`}>{config.label}</span>
+                  <span className="text-[10px] sm:text-[11px] text-slate-600 ml-auto">
                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed whitespace-pre-wrap break-words">{preview}</p>
+                <p className="text-[11px] sm:text-xs text-slate-300 leading-relaxed whitespace-pre-wrap break-words">{preview}</p>
                 {isLong && (
                   <button onClick={() => toggle(msg.id)}
-                    className="mt-1 text-[10px] text-cyan-500 hover:text-cyan-300 flex items-center gap-0.5">
+                    className="mt-1 text-[10px] sm:text-xs text-cyan-500 hover:text-cyan-300 flex items-center gap-0.5">
                     {isExpanded ? <><ChevronUp className="h-3 w-3" />Show less</> : <><ChevronDown className="h-3 w-3" />Show more</>}
                   </button>
                 )}
