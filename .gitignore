@@ -5,3 +5,5 @@ node_modules/
 .env.*.local
 dist/public/assets/*.js.map
 *.tsbuildinfo
+.local/
+.gemini-clipboard/
