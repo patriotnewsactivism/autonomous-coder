@@ -1,5 +1,8 @@
 node_modules
 .git
-.env
-.env.local
-dist
+*.md
+e2e
+playwright-report
+test-results
+uploads
+docs
