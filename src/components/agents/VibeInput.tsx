@@ -130,7 +130,7 @@ const VibeInput = ({ onSubmit, isRunning, onStop }: VibeInputProps) => {
         >
           <Bot className="h-4 w-4" />
           <span>Superagent</span>
-          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold">NEW</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold">NEW</span>
         </button>
       </div>
 
@@ -232,14 +232,14 @@ const VibeInput = ({ onSubmit, isRunning, onStop }: VibeInputProps) => {
             </p>
 
             {isRunning ? (
-              <Button type="button" variant="destructive" size="sm" onClick={onStop} className="gap-2 h-8 px-3 text-xs">
+              <Button type="button" variant="destructive" size="sm" onClick={onStop} className="gap-2 self-stretch px-3 text-xs">
                 <StopCircle className="h-3.5 w-3.5" /> Stop
               </Button>
             ) : (
               <Button type="submit"
                 disabled={!input.replace(/\[listening\.\.\.\]/g, "").trim() || (mode === "superagent" && !selectedProjectType)}
                 size="sm"
-                className={`gap-2 h-8 px-3 text-xs ${mode === "superagent" ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "glow-button"}`}>
+                className={`gap-2 self-stretch px-3 text-xs ${mode === "superagent" ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "glow-button"}`}>
                 {mode === "superagent" ? <Bot className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
                 <span className="hidden xs:inline">{mode === "superagent" ? "Deploy Superagent" : "Start Building"}</span>
                 <span className="sm:hidden">{mode === "superagent" ? "Deploy" : "Build"}</span>
@@ -282,3 +282,5 @@ const VibeInput = ({ onSubmit, isRunning, onStop }: VibeInputProps) => {
 };
 
 export default VibeInput;
+
+

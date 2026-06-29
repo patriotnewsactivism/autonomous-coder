@@ -96,7 +96,7 @@ export default function EmployeeDashboard() {
                   <div className="flex items-center gap-4 text-xs text-zinc-500">
                     <span className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      {new Date(task.createdAt!).toLocaleString()}
+                      {task.createdAt ? new Date(task.createdAt).toLocaleString() : "Unknown time"}
                     </span>
                     <span className="uppercase tracking-wider">
                       Source: {task.source}
@@ -138,11 +138,17 @@ function StatusBadge({ status }: { status: string }) {
   }
 }
 
-function getSummary(resultStr: string): string {
+function getSummary(result: any): string {
+  if (!result) return "No detailed summary provided.";
+  
+  if (typeof result === "object") {
+    return result.summary || result.error || JSON.stringify(result);
+  }
+
   try {
-    const data = JSON.parse(resultStr);
+    const data = JSON.parse(result);
     return data.summary || data.error || "No detailed summary provided.";
   } catch {
-    return resultStr;
+    return String(result);
   }
 }
