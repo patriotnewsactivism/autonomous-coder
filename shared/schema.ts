@@ -19,19 +19,23 @@ export const insertAnalysisHistorySchema = createInsertSchema(analysisHistory).o
 export type InsertAnalysisHistory = z.infer<typeof insertAnalysisHistorySchema>;
 export type AnalysisHistory = typeof analysisHistory.$inferSelect;
 
-export const projects = pgTable("projects", {
+export const coderProjects = pgTable("coder_projects", {
   id: serial("id").primaryKey(),
   goal: text("goal").notNull(),
-  files: text("files").notNull(),
-  agentSequence: text("agent_sequence"),
+  files: jsonb("files").notNull().default([]),
+  agentSequence: jsonb("agent_sequence").default([]),
   fileCount: integer("file_count").default(0),
+  totalTokens: integer("total_tokens").default(0),
+  totalCostUsd: integer("total_cost_usd").default(0),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertProjectSchema = createInsertSchema(projects).omit({
+export const insertProjectSchema = createInsertSchema(coderProjects).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 });
 
 export type InsertProject = z.infer<typeof insertProjectSchema>;
-export type Project = typeof projects.$inferSelect;
+export type Project = typeof coderProjects.$inferSelect;

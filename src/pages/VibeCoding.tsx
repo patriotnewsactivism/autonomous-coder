@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Sparkles, Activity, FileCode, Brain, Github, History, Clock, Link2, Check, Coins, RotateCcw, ChevronDown, DollarSign, Save, FolderGit2 } from "lucide-react";
+import { Sparkles, Activity, FileCode, Brain, Github, History, Clock, Link2, Check, Coins, RotateCcw, ChevronDown, DollarSign, Save, FolderGit2, AlertTriangle } from "lucide-react";
 import Header from "@/components/Header";
 import VibeInput, { BuildMode, ProjectType } from "@/components/agents/VibeInput";
 import AgentPipeline from "@/components/agents/AgentPipeline";
@@ -16,8 +16,9 @@ import {
   runOrchestrator, runStrategist, runBuilder, runSpecialist, runReviewer, runFixer,
   getSessionTokens, addSessionTokens, resetSessionTokens, estimateCost, SESSION_TOKENS_KEY,
   getSessionCost, resetSessionCost, formatCost,
-  getSelectedModel, setSelectedModel, fetchModels,
+  getSelectedModel, setSelectedModel, fetchModels, fetchProviderStatus,
   autoSave, getAutoSave, clearAutoSave, AutoSaveData,
+  type ProviderStatusResult,
 } from "@/lib/agents";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -57,6 +58,7 @@ const VibeCoding = () => {
   const [modelPricing, setModelPricing] = useState<Record<string, { input: number; output: number }>>({});
   const [showModelMenu, setShowModelMenu] = useState(false);
   const [autoSaved, setAutoSaved] = useState(false);
+  const [providerStatus, setProviderStatus] = useState<ProviderStatusResult | null>(null);
   const [buildMode, setBuildMode] = useState<BuildMode>("vibe");
   const [projectType, setProjectType] = useState<ProjectType | null>(null);
   const stopRef = useRef(false);
@@ -73,6 +75,10 @@ const VibeCoding = () => {
         setSelectedModelState(data.default);
       }
     }).catch(() => { /* models endpoint not available yet */ });
+  }, []);
+
+  useEffect(() => {
+    fetchProviderStatus().then(setProviderStatus).catch(() => {});
   }, []);
 
   // Sync token/cost display on storage changes
@@ -589,6 +595,39 @@ setIsRunning(false);
             )}
           </div>
         </section>
+
+        {/* Provider status warning */}
+        {providerStatus && !providerStatus.anyConfigured && (
+          <section className="mb-6 sm:mb-8 max-w-3xl mx-auto animate-fade-in">
+            <div className="glass-card rounded-xl border border-amber-500/30 p-4 sm:p-5 bg-amber-500/5">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground mb-1">No AI Providers Configured</h3>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Agent pipelines require at least one API key. All providers below offer free tiers:
+                  </p>
+                  <div className="space-y-1 mb-3">
+                    {providerStatus.freeUnconfigured.map((p) => (
+                      <a
+                        key={p.name}
+                        href={p.signupUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block text-xs text-primary hover:underline"
+                      >
+                        {p.label} — set <code className="text-[10px] bg-muted px-1 rounded">{p.envVar}</code>
+                      </a>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Add keys to your <code className="bg-muted px-1 rounded">.env</code> file and restart the server.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Pipeline */}
         <section className="mb-6 sm:mb-8 overflow-x-auto">

@@ -45,10 +45,14 @@ interface GitHubConnectProps {
 }
 
 type View = "token" | "repos" | "repo-detail" | "pr-review";
+type AuthMode = "token" | "username";
 
 const GitHubConnect = ({ onFilesLoaded }: GitHubConnectProps) => {
   const [token, setToken] = useState("");
+  const [username, setUsername] = useState("");
   const [savedToken, setSavedToken] = useState("");
+  const [savedUsername, setSavedUsername] = useState("");
+  const [authMode, setAuthMode] = useState<AuthMode>("username");
   const [view, setView] = useState<View>("token");
   const [repos, setRepos] = useState<Repo[]>([]);
   const [selectedRepo, setSelectedRepo] = useState<Repo | null>(null);
@@ -60,20 +64,29 @@ const GitHubConnect = ({ onFilesLoaded }: GitHubConnectProps) => {
   const [searchQuery, setSearchQuery] = useState("");
 
   const connectGitHub = async () => {
-    if (!token.trim()) return;
+    if (authMode === "token" && !token.trim()) return;
+    if (authMode === "username" && !username.trim()) return;
     setLoading(true);
     try {
+      const body: Record<string, string> = {};
+      if (authMode === "token" && token.trim()) {
+        body.token = token.trim();
+      } else if (authMode === "username" && username.trim()) {
+        body.username = username.trim();
+      }
+
       const res = await fetch("/api/github/repos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: token.trim() }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || "Failed to connect");
       }
       const data = await res.json();
-      setSavedToken(token.trim());
+      if (token.trim()) setSavedToken(token.trim());
+      if (username.trim()) setSavedUsername(username.trim());
       setRepos(data);
       setView("repos");
       toast.success(`Connected! Found ${data.length} repositories`);
@@ -193,35 +206,88 @@ const GitHubConnect = ({ onFilesLoaded }: GitHubConnectProps) => {
         {/* Token input */}
         {view === "token" && (
           <motion.div key="token" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 mb-4">
-              <Lock className="h-3.5 w-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
-              <p className="text-[10px] sm:text-xs text-muted-foreground">
-                Enter a GitHub Personal Access Token with <strong className="text-foreground">repo</strong> scope. Your token is never stored.{" "}
-                <a href="https://github.com/settings/tokens/new?scopes=repo" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                  Create one here →
-                </a>
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Input
-                type="password"
-                placeholder="ghp_xxxxxxxxxxxx"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && connectGitHub()}
-                className="text-xs sm:text-sm font-mono flex-1"
-                data-testid="input-github-token"
-              />
-              <Button
-                onClick={connectGitHub}
-                disabled={!token.trim() || loading}
-                size="sm"
-                className="shrink-0"
-                data-testid="button-github-connect"
+            {/* Auth mode toggle */}
+            <div className="flex gap-1 p-1 rounded-lg bg-muted/40 mb-4">
+              <button
+                onClick={() => setAuthMode("username")}
+                className={`flex-1 text-[10px] sm:text-xs py-1.5 rounded-md font-medium transition-all ${
+                  authMode === "username" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                }`}
               >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Connect"}
-              </Button>
+                Browse Public
+              </button>
+              <button
+                onClick={() => setAuthMode("token")}
+                className={`flex-1 text-[10px] sm:text-xs py-1.5 rounded-md font-medium transition-all ${
+                  authMode === "token" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                }`}
+              >
+                With Token
+              </button>
             </div>
+
+            {authMode === "username" ? (
+              <>
+                <div className="flex items-start gap-2.5 p-3 rounded-lg bg-primary/5 border border-primary/20 mb-4">
+                  <Github className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">
+                    Enter a GitHub username to browse their public repositories. No token or API key needed.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    placeholder="github-username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && connectGitHub()}
+                    className="text-xs sm:text-sm flex-1"
+                    data-testid="input-github-username"
+                  />
+                  <Button
+                    onClick={connectGitHub}
+                    disabled={!username.trim() || loading}
+                    size="sm"
+                    className="shrink-0"
+                    data-testid="button-github-browse"
+                  >
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Browse"}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 mb-4">
+                  <Lock className="h-3.5 w-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">
+                    Enter a GitHub Personal Access Token with <strong className="text-foreground">repo</strong> scope. Your token is never stored.{" "}
+                    <a href="https://github.com/settings/tokens/new?scopes=repo" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      Create one here →
+                    </a>
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    placeholder="ghp_xxxxxxxxxxxx"
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && connectGitHub()}
+                    className="text-xs sm:text-sm font-mono flex-1"
+                    data-testid="input-github-token"
+                  />
+                  <Button
+                    onClick={connectGitHub}
+                    disabled={!token.trim() || loading}
+                    size="sm"
+                    className="shrink-0"
+                    data-testid="button-github-connect"
+                  >
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Connect"}
+                  </Button>
+                </div>
+              </>
+            )}
           </motion.div>
         )}
 

@@ -1,0 +1,13 @@
+@echo off
+cd /d C:\autonomous-coder
+echo Removing git lock if present...
+if exist .git\index.lock del /f .git\index.lock
+echo Staging all changes...
+git add -A
+echo Committing...
+git commit -m "feat: rate limiting, auth, sandbox, tests, github client, multi-stage Dockerfile, render.yaml"
+echo Pushing to GitHub...
+git push origin main
+echo.
+echo Done! Press any key to close.
+pause

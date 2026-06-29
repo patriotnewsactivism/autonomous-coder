@@ -217,6 +217,32 @@ export async function fetchModels(): Promise<{ models: string[]; default: string
   return apiRequest("/api/models");
 }
 
+export interface ProviderStatusResult {
+  totalProviders: number;
+  activeProviders: number;
+  allConfigured: boolean;
+  anyConfigured: boolean;
+  providers: Array<{
+    name: string;
+    label: string;
+    isFree: boolean;
+    active: boolean;
+    envVar: string;
+    signupUrl: string;
+    models: Array<{ id: string; label: string }>;
+  }>;
+  freeUnconfigured: Array<{
+    name: string;
+    label: string;
+    envVar: string;
+    signupUrl: string;
+  }>;
+}
+
+export async function fetchProviderStatus(): Promise<ProviderStatusResult> {
+  return apiRequest("/api/providers/status");
+}
+
 export async function runAgent<T>(agentType: AgentType, goal: string, context?: any): Promise<T> {
   const model = getSelectedModel() || undefined;
   const data = await apiRequest("/api/ai-agent", {

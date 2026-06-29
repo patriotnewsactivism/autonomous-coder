@@ -28,6 +28,7 @@ const generalLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests." },
+  skip: (req) => req.path === "/api/providers/status" || req.path === "/api/health",
 });
 
 app.use("/api/analyze", aiLimiter);

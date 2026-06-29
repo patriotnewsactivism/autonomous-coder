@@ -5,6 +5,7 @@ import {
   getFallbackModel, getAvailableModels, getModelPricing,
   getDefaultModel, getProviderForModel, calcCost as _calcCost,
   isProviderActive, type ProviderName,
+  getProvidersStatus, getFreeUnconfiguredProviders,
 } from "./providers";
 
 console.log("[routes] module evaluating, DEEPSEEK_API_KEY present:", Boolean(process.env.DEEPSEEK_API_KEY));
@@ -396,6 +397,19 @@ Rules:
 // Google Gemini, Cerebras, GitHub Models, and Cohere with auto-fallback.
 const DEFAULT_MODEL = getDefaultModel();
 
+function buildNoProvidersError(): string {
+  const free = getFreeUnconfiguredProviders();
+  if (free.length === 0) {
+    const active = getProvidersStatus().filter(p => p.active);
+    if (active.length > 0) {
+      return `AI providers are configured but none are responding. Active: ${active.map(p => p.label).join(", ")}. Check your API keys.`;
+    }
+    return "No AI providers are configured. Set one of: DEEPSEEK_API_KEY, GROQ_API_KEY (free), GEMINI_API_KEY (free), CEREBRAS_API_KEY (free), GITHUB_TOKEN (free), COHERE_API_KEY (free)";
+  }
+  const lines = free.map(p => `  - ${p.envVar} → ${p.signupUrl} (${p.label})`);
+  return `No AI providers are configured. Set one of these free API keys:\n${lines.join("\n")}`;
+}
+
 interface AIUsage {
   content: string;
   tokens: number;
@@ -412,19 +426,28 @@ function calcCost(model: string, promptTokens: number, completionTokens: number)
 export async function callAI(
   systemPrompt: string,
   userMessage: string,
-  model?: string
+  model?: string,
+  triedModels: Set<string> = new Set(),
 ): Promise<AIUsage> {
   const deployment = model || DEFAULT_MODEL;
+  if (!deployment) throw new Error(buildNoProvidersError());
+
+  if (triedModels.has(deployment)) {
+    const tried = Array.from(triedModels).join(", ");
+    throw new Error(`All AI providers failed (tried: ${tried}). ${buildNoProvidersError()}`);
+  }
+  triedModels.add(deployment);
+
   const req = buildRequest(deployment, systemPrompt, userMessage, 4096, false);
   const providerName = getProviderForModel(deployment);
 
   if (!providerName) {
     const fallback = getFallbackModel(deployment);
-    if (fallback) {
+    if (fallback && !triedModels.has(fallback)) {
       console.log(`[callAI] No provider for ${deployment}, falling back to ${fallback}`);
-      return callAI(systemPrompt, userMessage, fallback);
+      return callAI(systemPrompt, userMessage, fallback, triedModels);
     }
-    throw new Error(`No provider configured for model: ${deployment}`);
+    throw new Error(buildNoProvidersError());
   }
 
   const response = await fetch(req.url, {
@@ -436,12 +459,12 @@ export async function callAI(
   if (!response.ok) {
     const errorText = await response.text();
     const fallback = getFallbackModel(deployment);
-    if (fallback) {
+    if (fallback && !triedModels.has(fallback)) {
       console.log(`[callAI] ${deployment} failed (${response.status}), falling back to ${fallback}`);
-      return callAI(systemPrompt, userMessage, fallback);
+      return callAI(systemPrompt, userMessage, fallback, triedModels);
     }
     if (response.status === 429) throw new Error("Rate limit exceeded. Please try again.");
-    if (response.status === 401) throw new Error("Invalid API key.");
+    if (response.status === 401) throw new Error(`${deployment}: Invalid API key. Check that your key is valid and has not expired.\n\n${buildNoProvidersError()}`);
     throw new Error(`AI error (${deployment}): ${response.status} - ${errorText}`);
   }
 
@@ -450,11 +473,11 @@ export async function callAI(
 
   if (!parsed.content) {
     const fallback = getFallbackModel(deployment);
-    if (fallback) {
+    if (fallback && !triedModels.has(fallback)) {
       console.log(`[callAI] ${deployment} returned empty, falling back to ${fallback}`);
-      return callAI(systemPrompt, userMessage, fallback);
+      return callAI(systemPrompt, userMessage, fallback, triedModels);
     }
-    throw new Error("No response from AI");
+    throw new Error(`No response from AI (${deployment}). All providers exhausted.`);
   }
   return {
     content: parsed.content,
@@ -470,19 +493,28 @@ export async function callAIStream(
   systemPrompt: string,
   userMessage: string,
   onToken: (token: string) => void,
-  model?: string
+  model?: string,
+  triedModels: Set<string> = new Set(),
 ): Promise<AIUsage> {
   const deployment = model || DEFAULT_MODEL;
+  if (!deployment) throw new Error(buildNoProvidersError());
+
+  if (triedModels.has(deployment)) {
+    const tried = Array.from(triedModels).join(", ");
+    throw new Error(`All AI providers failed (tried: ${tried}). ${buildNoProvidersError()}`);
+  }
+  triedModels.add(deployment);
+
   const req = buildRequest(deployment, systemPrompt, userMessage, 4096, true);
   const providerName = getProviderForModel(deployment);
 
   if (!providerName) {
     const fallback = getFallbackModel(deployment);
-    if (fallback) {
+    if (fallback && !triedModels.has(fallback)) {
       console.log(`[callAIStream] No provider for ${deployment}, falling back to ${fallback}`);
-      return callAIStream(systemPrompt, userMessage, onToken, fallback);
+      return callAIStream(systemPrompt, userMessage, onToken, fallback, triedModels);
     }
-    throw new Error(`No provider configured for model: ${deployment}`);
+    throw new Error(buildNoProvidersError());
   }
 
   const response = await fetch(req.url, {
@@ -493,12 +525,12 @@ export async function callAIStream(
 
   if (!response.ok) {
     const fallback = getFallbackModel(deployment);
-    if (fallback) {
+    if (fallback && !triedModels.has(fallback)) {
       console.log(`[callAIStream] ${deployment} failed (${response.status}), falling back to ${fallback}`);
-      return callAIStream(systemPrompt, userMessage, onToken, fallback);
+      return callAIStream(systemPrompt, userMessage, onToken, fallback, triedModels);
     }
     if (response.status === 429) throw new Error("Rate limit exceeded. Please try again.");
-    if (response.status === 401) throw new Error("Invalid API key.");
+    if (response.status === 401) throw new Error(`${deployment}: Invalid API key. Check that your key is valid and has not expired.\n\n${buildNoProvidersError()}`);
     throw new Error(`AI error (${deployment}): ${response.status}`);
   }
 
@@ -594,13 +626,39 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
+  app.get("/api/providers/status", (_req, res) => {
+    const all = getProvidersStatus();
+    const active = getProvidersStatus().filter(p => p.active);
+    res.json({
+      totalProviders: all.length,
+      activeProviders: active.length,
+      allConfigured: active.length === all.length,
+      anyConfigured: active.length > 0,
+      providers: all.map(p => ({
+        name: p.name,
+        label: p.label,
+        isFree: p.isFree,
+        active: p.active,
+        envVar: p.envVar,
+        signupUrl: p.signupUrl,
+        models: p.models,
+      })),
+      freeUnconfigured: getFreeUnconfiguredProviders().map(p => ({
+        name: p.name,
+        label: p.label,
+        envVar: p.envVar,
+        signupUrl: p.signupUrl,
+      })),
+    });
+  });
+
   app.get("/api/models", (_req, res) => {
     const modelList = getAvailableModels();
     const modelIds = modelList.map(m => m.id);
     const pricing = getModelPricing();
     res.json({
       models: modelIds,
-      default: DEFAULT_MODEL,
+      default: DEFAULT_MODEL || "deepseek-chat",
       pricing,
       providers: modelList.map(m => ({
         id: m.id,
@@ -711,15 +769,29 @@ export async function registerRoutes(app: Express): Promise<void> {
   // GitHub routes
   app.post("/api/github/repos", async (req, res) => {
     try {
-      const { token } = req.body;
-      if (!token) return res.status(400).json({ error: "GitHub token required" });
+      const { token, username } = req.body;
+      const headers: Record<string, string> = {
+        Accept: "application/vnd.github.v3+json",
+        "User-Agent": "Autonomous-Code-Wizard",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
 
-      const response = await fetch("https://api.github.com/user/repos?sort=updated&per_page=50", {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "Autonomous-Code-Wizard" },
-      });
+      let url: string;
+      if (token) {
+        url = "https://api.github.com/user/repos?sort=updated&per_page=50";
+      } else if (username) {
+        url = `https://api.github.com/users/${encodeURIComponent(username)}/repos?sort=updated&per_page=50`;
+      } else {
+        return res.status(400).json({ error: "Provide a GitHub token (for your repos) or a username (to browse public repos)." });
+      }
+
+      const response = await fetch(url, { headers });
 
       if (!response.ok) {
-        if (response.status === 401) return res.status(401).json({ error: "Invalid GitHub token" });
+        if (response.status === 401) {
+          if (token) return res.status(401).json({ error: "Invalid GitHub token" });
+          return res.status(401).json({ error: "GitHub API rate limit exceeded. Add a token to increase limit." });
+        }
         return res.status(response.status).json({ error: "GitHub API error" });
       }
 
@@ -738,18 +810,26 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.post("/api/github/repo-files", async (req, res) => {
     try {
       const { token, fullName, branch = "main" } = req.body;
-      if (!token || !fullName) return res.status(400).json({ error: "Token and repo name required" });
+      if (!fullName) return res.status(400).json({ error: "Repo name required" });
+
+      const headers: Record<string, string> = {
+        Accept: "application/vnd.github.v3+json",
+        "User-Agent": "Autonomous-Code-Wizard",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
 
       const tryBranch = async (b: string) => {
-        const r = await fetch(`https://api.github.com/repos/${fullName}/git/trees/${b}?recursive=1`, {
-          headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "Autonomous-Code-Wizard" },
-        });
+        const r = await fetch(`https://api.github.com/repos/${fullName}/git/trees/${b}?recursive=1`, { headers });
         return r;
       };
 
       let treeResponse = await tryBranch(branch);
       if (!treeResponse.ok && branch === "main") treeResponse = await tryBranch("master");
-      if (!treeResponse.ok) return res.status(404).json({ error: "Repository branch not found" });
+      if (!treeResponse.ok) {
+        if (treeResponse.status === 404) return res.status(404).json({ error: "Repository branch not found" });
+        if (treeResponse.status === 401) return res.status(401).json({ error: "This repo may be private — add a GitHub token" });
+        return res.status(treeResponse.status).json({ error: "GitHub API error" });
+      }
 
       const tree = await treeResponse.json();
       const codeExts = [".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs", ".java", ".css", ".json", ".md"];
@@ -763,11 +843,15 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.post("/api/github/file-content", async (req, res) => {
     try {
       const { token, fullName, filePath, branch = "main" } = req.body;
-      if (!token || !fullName || !filePath) return res.status(400).json({ error: "Missing parameters" });
+      if (!fullName || !filePath) return res.status(400).json({ error: "Missing parameters" });
 
-      const response = await fetch(`https://api.github.com/repos/${fullName}/contents/${filePath}?ref=${branch}`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "Autonomous-Code-Wizard" },
-      });
+      const headers: Record<string, string> = {
+        Accept: "application/vnd.github.v3+json",
+        "User-Agent": "Autonomous-Code-Wizard",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const response = await fetch(`https://api.github.com/repos/${fullName}/contents/${filePath}?ref=${branch}`, { headers });
 
       if (!response.ok) return res.status(response.status).json({ error: "File not found" });
       const fileData = await response.json();

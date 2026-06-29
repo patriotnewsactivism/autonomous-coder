@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Wand2, Code, Sparkles, CheckCircle, Clock, XCircle, AlertTriangle, Zap, Target, Shield } from "lucide-react";
 import Header from "@/components/Header";
 import FeatureCard from "@/components/FeatureCard";
@@ -7,7 +7,7 @@ import RecentActivity from "@/components/RecentActivity";
 import CodeEditor from "@/components/CodeEditor";
 import GitHubConnect from "@/components/GitHubConnect";
 import AnalysisResult from "@/components/AnalysisResult";
-import { GeneratedFile } from "@/lib/agents";
+import { GeneratedFile, fetchProviderStatus, type ProviderStatusResult } from "@/lib/agents";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { analyzeCode, detectLanguage } from "@/lib/api";
@@ -46,6 +46,12 @@ const Index = () => {
   });
 
   const [activities, setActivities] = useState<Activity[]>([]);
+
+  const [providerStatus, setProviderStatus] = useState<ProviderStatusResult | null>(null);
+
+  useEffect(() => {
+    fetchProviderStatus().then(setProviderStatus).catch(() => {});
+  }, []);
 
   const features = [
     {
@@ -256,6 +262,39 @@ const Index = () => {
             intelligent, real-time code review.
           </p>
         </section>
+
+        {/* Provider status warning */}
+        {providerStatus && !providerStatus.anyConfigured && (
+          <section className="mb-8 sm:mb-12 animate-fade-in">
+            <div className="glass-card rounded-xl border border-amber-500/30 p-4 sm:p-5 bg-amber-500/5">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground mb-1">No AI Providers Configured</h3>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    AI analysis requires at least one API key. All providers below offer free tiers:
+                  </p>
+                  <div className="space-y-1 mb-3">
+                    {providerStatus.freeUnconfigured.map((p) => (
+                      <a
+                        key={p.name}
+                        href={p.signupUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block text-xs text-primary hover:underline"
+                      >
+                        {p.label} — set <code className="text-[10px] bg-muted px-1 rounded">{p.envVar}</code>
+                      </a>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Add keys to your <code className="bg-muted px-1 rounded">.env</code> file and restart the server.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Feature Cards */}
         <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 mb-10 sm:mb-16 animate-slide-up" style={{ animationDelay: "0.1s" }}>

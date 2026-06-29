@@ -160,10 +160,59 @@ export function getModelPricing(): Record<string, { input: number; output: numbe
   return pricing;
 }
 
-/** Default model — first available from the preferred order */
-export function getDefaultModel(): string {
+/** Default model — first available from the preferred order. Returns null when no providers are configured. */
+export function getDefaultModel(): string | null {
   const chain = getFallbackChain();
-  return chain[0] || "deepseek-chat";
+  return chain[0] || null;
+}
+
+/** Return all providers with their status, api key env var, and signup URL for diagnostics */
+export interface ProviderStatus {
+  name: ProviderName;
+  label: string;
+  isFree: boolean;
+  active: boolean;
+  envVar: string;
+  signupUrl: string;
+  models: { id: string; label: string }[];
+}
+
+const PROVIDER_SIGNUP_URLS: Record<ProviderName, string> = {
+  deepseek: "https://platform.deepseek.com/api_keys",
+  groq: "https://console.groq.com/keys",
+  gemini: "https://aistudio.google.com/apikey",
+  cerebras: "https://cloud.cerebras.ai",
+  github: "https://github.com/settings/tokens",
+  cohere: "https://dashboard.cohere.com/api-keys",
+};
+
+const PROVIDER_ENV_VARS: Record<ProviderName, string> = {
+  deepseek: "DEEPSEEK_API_KEY",
+  groq: "GROQ_API_KEY",
+  gemini: "GEMINI_API_KEY (or GOOGLE_API_KEY)",
+  cerebras: "CEREBRAS_API_KEY",
+  github: "GITHUB_TOKEN (or GITHUB_MODELS_TOKEN)",
+  cohere: "COHERE_API_KEY",
+};
+
+export function getProvidersStatus(): ProviderStatus[] {
+  return (Object.keys(PROVIDERS) as ProviderName[]).map((name) => ({
+    name,
+    label: PROVIDERS[name].label,
+    isFree: PROVIDERS[name].isFree,
+    active: isProviderActive(name),
+    envVar: PROVIDER_ENV_VARS[name],
+    signupUrl: PROVIDER_SIGNUP_URLS[name],
+    models: PROVIDERS[name].models.map((m) => ({ id: m.id, label: m.label })),
+  }));
+}
+
+export function getActiveProvidersStatus(): ProviderStatus[] {
+  return getProvidersStatus().filter((p) => p.active);
+}
+
+export function getFreeUnconfiguredProviders(): ProviderStatus[] {
+  return getProvidersStatus().filter((p) => !p.active && p.isFree);
 }
 
 export function calcCost(model: string, promptTokens: number, completionTokens: number): number {

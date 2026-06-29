@@ -75,6 +75,22 @@
 | `src/pages/Index.tsx` | Add warning banner when no AI providers configured |
 | `src/pages/VibeCoding.tsx` | Add warning banner when no AI providers configured |
 
+## Free Provider Setup Guide (for user .env)
+
+Since no API keys are configured yet, the error message in Phase 2 will include these instructions
+so the user knows exactly where to get free keys:
+
+| Provider | Free Tier | Sign-up URL | Env Var |
+|----------|-----------|-------------|---------|
+| Google Gemini | 1,000-1,500 req/day, 1M context | https://aistudio.google.com/apikey | `GEMINI_API_KEY` |
+| Groq | 30 req/min, 1,000 req/day | https://console.groq.com/keys | `GROQ_API_KEY` |
+| Cerebras | ~1M tokens/day, 30 req/min | https://cloud.cerebras.ai | `CEREBRAS_API_KEY` |
+| GitHub Models | 10-15 req/min, 50-150 req/day | https://github.com/settings/tokens (classic PAT, no scopes needed) | `GITHUB_TOKEN` |
+| Cohere | 1,000 calls/month trial | https://dashboard.cohere.com/api-keys | `COHERE_API_KEY` |
+
+Note: `GITHUB_TOKEN` serves double duty — it powers both GitHub Models AI AND
+the GitHub Connect/Import features for private repos.
+
 ## Risk Assessment
 
 - **Low risk:** Changes are additive or improve error messages. No existing functionality is removed.
