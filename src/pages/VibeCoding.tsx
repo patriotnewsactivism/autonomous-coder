@@ -369,12 +369,56 @@ const VibeCoding = () => {
         throw e;
       }
 
-      // STEP 3: Builder
+      // STEP 3: Builder (or SpawnEngine for epic complexity)
       setCurrentAgent("builder");
       const builderStream = addStreamingMessage("builder");
       let buildResult: BuildResult;
-      try {
-        buildResult = await runBuilder(goal, orchResult, stratResult, seedFiles, builderStream);
+
+      // Epic mode: use parallel spawn for very large goals
+      const isEpic = (orchResult as any).estimatedComplexity === "epic"
+        || (orchResult.estimatedSteps && orchResult.estimatedSteps >= 8)
+        || orchResult.agentSequence.length >= 7;
+
+      if (isEpic && !stopRef.current) {
+        addMessage("builder", "thinking", "⚡ Epic build detected — spawning parallel agent shards…");
+        try {
+          const [planRes, spawnCtxRes] = await Promise.all([
+            fetch(`${API_BASE}/api/spawn/plan`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ goal, model: getSelectedModel() || undefined }),
+            }),
+            Promise.resolve(null),
+          ]);
+          const plan = await planRes.json();
+          addMessage("builder", "thinking", `📦 ${plan.shards?.length || 0} parallel shards planned`);
+
+          const execRes = await fetch(`${API_BASE}/api/spawn/execute`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              plan,
+              sessionId: `spawn-${Date.now()}`,
+              goal,
+              model: getSelectedModel() || undefined,
+            }),
+          });
+          const { files: spawnedFiles } = await execRes.json();
+          buildResult = {
+            files: spawnedFiles || [],
+            explanation: `Parallel spawn complete — ${spawnedFiles?.length || 0} files across ${plan.shards?.length} shards`,
+            nextSteps: [],
+            tokenCount: 0,
+            costUsd: 0,
+          };
+        } catch (spawnErr: any) {
+          addMessage("builder", "error", `Spawn failed, falling back to serial: ${spawnErr.message}`);
+          // Fallback to normal builder
+          buildResult = await runBuilder(goal, orchResult, stratResult, seedFiles, builderStream);
+        }
+      } else {
+        try {
+          buildResult = await runBuilder(goal, orchResult, stratResult, seedFiles, builderStream);
         tick();
         finalizeStreamingMessage("builder", `Generated ${buildResult.files.length} files`);
         if (buildResult.files.length > 0) {
@@ -388,6 +432,20 @@ const VibeCoding = () => {
       } catch (e: any) {
         addMessage("builder", "error", e.message);
         throw e;
+      }
+      } // end else (non-epic)
+
+      // Merge spawn files if epic mode produced them
+      if (buildResult.files.length > 0) {
+        buildResult.files.forEach(f => {
+          const idx = allFiles.findIndex(x => x.path === f.path);
+          if (idx >= 0) allFiles[idx] = f;
+          else allFiles.push(f);
+        });
+        setGeneratedFiles([...allFiles]);
+        sandbox.injectFiles(buildResult.files);
+        setCompletedAgents(prev => [...prev, "builder"]);
+        addMessage("builder", "result", `${buildResult.files.length} files built`, { tokenCount: buildResult.tokenCount ?? 0 });
       }
 
       // STEP 4: Specialists (parallel)
@@ -457,6 +515,68 @@ const VibeCoding = () => {
         }
       }
 
+      // ── STEP 7: AutoHeal — watch preview errors and self-correct ──
+      const previewErrors = sandbox.state.previewErrors;
+      if (previewErrors.length > 0 && allFiles.length > 0 && !stopRef.current) {
+        setCurrentAgent("fixer" as AgentType);
+        sandbox.startObserving();
+        addMessage("fixer", "thinking", `🔍 Detected ${previewErrors.length} preview error(s) — auto-healing…`);
+        try {
+          const healRes = await fetch(`${API_BASE}/api/autoheal`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionId: `build-${Date.now()}`,
+              goal: rawGoal,
+              files: allFiles,
+              errors: previewErrors,
+              model: getSelectedModel() || undefined,
+              maxCycles: 3,
+            }),
+          });
+          if (healRes.ok) {
+            const healResult = await healRes.json();
+            if (healResult.patchedFiles?.length) {
+              healResult.patchedFiles.forEach((pf: any) => {
+                const idx = allFiles.findIndex(f => f.path === pf.path);
+                if (idx >= 0) allFiles[idx] = pf;
+              });
+              setGeneratedFiles([...allFiles]);
+              sandbox.injectFiles(allFiles);
+              sandbox.startCorrecting();
+              addMessage("fixer", "result", `🩹 Auto-healed in ${healResult.cycles} cycle(s): ${healResult.learnings?.[0] || "errors fixed"}`);
+            }
+          }
+        } catch (healErr: any) {
+          addMessage("fixer", "error", `Auto-heal skipped: ${healErr.message}`);
+        }
+      }
+
+      // ── STEP 8: AutoLearn — extract build wisdom for future sessions ──
+      if (allFiles.length > 0 && !stopRef.current) {
+        try {
+          fetch(`${API_BASE}/api/autolearn`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              summary: {
+                sessionId: `build-${Date.now()}`,
+                goal: rawGoal,
+                agentSequence: orchResult.agentSequence,
+                agentScores: Object.fromEntries(
+                  Object.entries(sandbox.state.agentScores)
+                ),
+                files: allFiles.slice(0, 5),
+                healCycles: sandbox.state.observationCount,
+                totalTokens: getSessionTokens(),
+                success: true,
+              },
+              model: getSelectedModel() || undefined,
+            }),
+          }).catch(() => {}); // fire-and-forget
+        } catch { /* non-critical */ }
+      }
+
       // ── Complete ──
       setCurrentAgent(undefined);
       setTasks(prev => prev.map(t => ({ ...t, status: "completed" as const })));
@@ -467,7 +587,8 @@ const VibeCoding = () => {
         saveMutation.mutate({ goal: rawGoal, files: allFiles, agentSequence: orchResult.agentSequence });
       }
 
-      addMessage("orchestrator", "result", `✅ Build complete — ${allFiles.length} files, ${sessionTokens.toLocaleString()} tokens`, { tokenCount: 0 });
+      const totalTok = getSessionTokens();
+      addMessage("orchestrator", "result", `✅ Build complete — ${allFiles.length} files · ${totalTok.toLocaleString()} tokens · ${sandbox.state.observationCount} heal cycles`, { tokenCount: 0 });
       toast.success(`Build complete — ${allFiles.length} files generated`);
 
     } catch (e: any) {
@@ -475,6 +596,26 @@ const VibeCoding = () => {
       sandbox.setBuilding(false);
       addMessage("orchestrator", "error", e.message || "Build failed");
       toast.error(`Build failed: ${e.message}`);
+
+      // AutoLearn from failures too — this prevents repeat mistakes
+      try {
+        fetch(`${API_BASE}/api/autolearn`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            summary: {
+              sessionId: `build-${Date.now()}`,
+              goal: rawGoal,
+              agentSequence: [],
+              agentScores: {},
+              files: [],
+              healCycles: 0,
+              totalTokens: getSessionTokens(),
+              success: false,
+            },
+          }),
+        }).catch(() => {});
+      } catch { /* non-critical */ }
     } finally {
       setIsRunning(false);
       sandbox.setBuilding(false);

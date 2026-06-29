@@ -1319,7 +1319,69 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
+  // ── AutoHeal: fix preview/runtime errors autonomously ──────────────────────
+  app.post("/api/autoheal", async (req, res) => {
+    try {
+      const { sessionId, goal, files, errors, model, maxCycles } = req.body;
+      if (!files?.length || !errors?.length) {
+        return res.status(400).json({ error: "files and errors required" });
+      }
+      const { runAutoHeal } = await import("./autoHeal.js");
+      const result = await runAutoHeal({ sessionId, goal, files, errors, model, maxCycles });
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "AutoHeal failed" });
+    }
+  });
+
+  // ── AutoLearn: extract + store learnings after a build ─────────────────────
+  app.post("/api/autolearn", async (req, res) => {
+    try {
+      const { summary, model } = req.body;
+      const { extractAndStoreLearnigns } = await import("./autoLearn.js");
+      await extractAndStoreLearnigns(summary, model);
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "AutoLearn failed" });
+    }
+  });
+
+  // ── SpawnEngine: decompose epic goals into parallel agent shards ────────────
+  app.post("/api/spawn/plan", async (req, res) => {
+    try {
+      const { goal, model } = req.body;
+      if (!goal) return res.status(400).json({ error: "goal required" });
+      const { planSpawn } = await import("./spawnEngine.js");
+      const plan = await planSpawn(goal, model);
+      res.json(plan);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Spawn plan failed" });
+    }
+  });
+
+  app.post("/api/spawn/execute", async (req, res) => {
+    try {
+      const { plan, sessionId, goal, model } = req.body;
+      if (!plan || !sessionId) return res.status(400).json({ error: "plan and sessionId required" });
+      const { executeSpawnPlan } = await import("./spawnEngine.js");
+      const files = await executeSpawnPlan(plan, sessionId, goal, model);
+      res.json({ files });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Spawn execute failed" });
+    }
+  });
+
+  app.post("/api/spawn/quick", async (req, res) => {
+    try {
+      const { sessionId, goal, tasks, model } = req.body;
+      const { quickSpawn } = await import("./spawnEngine.js");
+      const files = await quickSpawn(sessionId, goal, tasks, model);
+      res.json({ files });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Quick spawn failed" });
+    }
+  });
+
+
 
 }
-
-

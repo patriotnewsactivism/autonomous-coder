@@ -2,6 +2,7 @@
 import { callAI, systemPrompts, parseJsonResponse } from "./routes";
 import { storeMemory, retrieveMemory } from "./agentMemory";
 import { EventEmitter } from "events";
+import { getSmartContext } from "./autoLearn.js";
 
 export const workerBus = new EventEmitter();
 workerBus.setMaxListeners(200);
@@ -81,7 +82,9 @@ export async function runWorkerJob(job: WorkerJob): Promise<WorkerResult> {
     attempts++;
     try {
       const prompt = systemPrompts[job.agent as keyof typeof systemPrompts] || systemPrompts.builder;
-      const userMsg = `GOAL: ${job.goal}\n\nCONTEXT: ${JSON.stringify(job.context, null, 2)}${memoryContext}${
+      // Inject accumulated cross-session wisdom
+      const smartCtx = await getSmartContext(job.goal, job.agent);
+      const userMsg = `GOAL: ${job.goal}\n\nCONTEXT: ${JSON.stringify(job.context, null, 2)}${memoryContext}${smartCtx}${
         attempts > 1 ? `\n\nPREVIOUS ATTEMPT FAILED EVAL. Issues: ${lastError}. Try harder.` : ""
       }`;
 
