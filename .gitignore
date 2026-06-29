@@ -1,43 +1,43 @@
-# ── Dependencies ──────────────────────────────────────────────────────────────
+# Dependencies
 node_modules/
 
-# ── Build output ───────────────────────────────────────────────────────────────
+# Build output
 dist/
 
-# ── Environment ────────────────────────────────────────────────────────────────
+# Environment
 .env
 .env.local
 .env.*.local
 
-# ── IDE ────────────────────────────────────────────────────────────────────────
+# TypeScript
+*.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# ── OS ────────────────────────────────────────────────────────────────────────
-.DS_Store
-Thumbs.db
-
-# ── Logs ──────────────────────────────────────────────────────────────────────
+# Logs
 *.log
 npm-debug.log*
 
-# ── TypeScript ─────────────────────────────────────────────────────────────────
-*.tsbuildinfo
-
-# ── Test / coverage ────────────────────────────────────────────────────────────
+# Test coverage
 coverage/
-.nyc_output/
 
-# ── Tooling caches ─────────────────────────────────────────────────────────────
-.design-sync/
-.ds-sync/
-.kilo/
-.local/
-.gemini-clipboard/
+# Supabase
+supabase/.temp/
 
-# ── Project-specific ──────────────────────────────────────────────────────────
+# Nested copies / legacy
 autonomous-coder/
+
+# Local tools/skills artifacts
+.local/
+
+# Vendor bundles
 ds-bundle/
-attached_assets/
+.vite/

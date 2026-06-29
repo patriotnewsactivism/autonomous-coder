@@ -55,7 +55,7 @@ function FileTree({ files, selected, onSelect, newPaths }: {
       {Object.entries(grouped).map(([dir, dirFiles]) => (
         <div key={dir}>
           <button
-            onClick={() => setCollapsed(c => { const n = new Set(c); n.has(dir) ? n.delete(dir) : n.add(dir); return n; })}
+            onClick={() => setCollapsed(c => { const n = new Set(c); if (n.has(dir)) { n.delete(dir); } else { n.add(dir); } return n; })}
             className="flex items-center gap-1 px-2 py-0.5 text-slate-500 hover:text-slate-300 w-full text-left"
           >
             {collapsed.has(dir) ? <ChevronRight className="h-3 w-3 flex-shrink-0" /> : <ChevronDown className="h-3 w-3 flex-shrink-0" />}

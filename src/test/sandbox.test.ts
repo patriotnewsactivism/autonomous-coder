@@ -69,7 +69,7 @@ describe("runInSandbox", () => {
     const result = runInSandbox(`while(true) {}`);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.toLowerCase()).toMatch(/timeout|timed out/);
-  });
+  }, 10000);
 
   it("blocks access to process", () => {
     const result = runInSandbox(`typeof process`);

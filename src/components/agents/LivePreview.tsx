@@ -36,7 +36,7 @@ function buildPreviewDocument(files: GeneratedFile[]): string {
   const cssContent = cssFiles.map(f => `<style>${f.content}</style>`).join("\n");
 
   const jsxContent = tsxFiles.map(f => {
-    let c = f.content
+    const c = f.content
       .replace(/^import\s+.*?from\s+['"].*?['"];?\s*$/gm, "")
       .replace(/^import\s+type\s+.*?from\s+['"].*?['"];?\s*$/gm, "")
       .replace(/^import\s+['"].*?['"];?\s*$/gm, "")

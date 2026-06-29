@@ -69,7 +69,7 @@ export async function runParallelBuild(
       ];
       eventTypes.forEach(type => {
         es!.addEventListener(type, (e: MessageEvent) => {
-          try { onEvent({ type: type as WorkerEvent["type"], ...JSON.parse(e.data) }); } catch {}
+          try { onEvent({ type: type as WorkerEvent["type"], ...JSON.parse(e.data) }); } catch { /* ignore malformed SSE data */ }
         });
       });
     }

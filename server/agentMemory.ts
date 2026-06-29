@@ -81,5 +81,7 @@ export async function scoreMemory(id: string, delta: number): Promise<void> {
     const { data } = await supabase.from("agent_memory").select("score").eq("id", id).single();
     const current = data?.score || 0;
     await supabase.from("agent_memory").update({ score: current + delta }).eq("id", id);
-  } catch (e) {}
+  } catch {
+    // non-critical: scoring update can fail silently
+  }
 }

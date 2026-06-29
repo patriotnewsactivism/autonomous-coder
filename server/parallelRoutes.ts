@@ -13,15 +13,13 @@ type SandboxResult =
 
 /** Strip TypeScript type annotations so plain JS vm can run TS code. */
 function stripTypes(code: string): string {
-  // Use esbuild synchronously if available; fall back to regex stripping
   try {
-    const esbuild = require("esbuild");
     return esbuild.transformSync(code, { loader: "ts", target: "es2020" }).code;
   } catch {
-    // Minimal regex fallback: remove type annotations and interface/type declarations
+    // Regex fallback: remove common TS-only constructs
     return code
       .replace(/^\s*(export\s+)?(interface|type)\s+\w[\s\S]*?\n(?=\S)/gm, "")
-      .replace(/:\s*[\w<>\[\]|&{},\s]+(?=\s*[=,);{])/g, "")
+      .replace(/:\s*[\w<>[\]|&{},\s]+(?=\s*[=,);{])/g, "")
       .replace(/<[\w,\s]+>/g, "");
   }
 }

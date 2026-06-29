@@ -163,7 +163,7 @@ const CodeWorkspace = ({ files, onFilesUpdated }: CodeWorkspaceProps) => {
     setEditingFile(null);
     setExpandedFiles((prev) => {
       const next = new Set(prev);
-      next.has(path) ? next.delete(path) : next.add(path);
+      if (next.has(path)) { next.delete(path); } else { next.add(path); }
       return next;
     });
   };

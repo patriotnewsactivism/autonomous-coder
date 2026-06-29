@@ -330,7 +330,7 @@ export async function executeTask(
     tags: [classification.category, classification.complexity],
   });
 
-  let result: SuperagentTaskResult = {
+  const result: SuperagentTaskResult = {
     sessionId,
     classification,
     summary: "",
