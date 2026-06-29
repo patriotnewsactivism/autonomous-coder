@@ -2,9 +2,9 @@ FROM node:22-slim AS builder
 
 WORKDIR /app
 
-# Install all deps (including devDeps needed for build)
+# Install all deps including optional platform binaries (rollup, esbuild need them)
 COPY package.json package-lock.json ./
-RUN npm install --no-optional
+RUN npm install --ignore-scripts=false
 
 # Copy source and build
 COPY . .
