@@ -345,13 +345,14 @@ var init_providers = __esm({
       gemini: {
         name: "gemini",
         label: "Google Gemini (Free Tier)",
-        apiKey: process.env.GEMINI_API_KEY || "",
+        apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || "",
         endpoint: "https://generativelanguage.googleapis.com/v1beta",
         models: [
+          { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash", contextWindow: 1e6, pricing: [0, 0] },
           { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash", contextWindow: 1e6, pricing: [0, 0] },
           { id: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash-Lite", contextWindow: 1e6, pricing: [0, 0] },
-          { id: "gemini-1.5-flash", label: "Gemini 1.5 Flash", contextWindow: 1e6, pricing: [0, 0] },
-          { id: "gemini-1.5-flash-8b", label: "Gemini 1.5 Flash 8B", contextWindow: 1e6, pricing: [0, 0] }
+          { id: "gemini-3-flash-preview", label: "Gemini 3 Flash Preview", contextWindow: 1e6, pricing: [0, 0] },
+          { id: "gemini-3.5-flash", label: "Gemini 3.5 Flash", contextWindow: 1e6, pricing: [0, 0] }
         ],
         isFree: true
       },
