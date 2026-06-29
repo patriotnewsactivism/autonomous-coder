@@ -28,8 +28,8 @@ function supaHeaders() {
     Prefer: "return=representation"
   };
 }
-async function supaFetch(path2, options) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1${path2}`, {
+async function supaFetch(path3, options) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1${path3}`, {
     ...options,
     headers: { ...supaHeaders(), ...options?.headers }
   });
@@ -843,9 +843,9 @@ ${JSON.stringify(prInfo, null, 2)}`
         ".vue",
         ".svelte"
       ];
-      const isCodeFile = (path2) => {
-        if (skipDirs.some((d) => path2.startsWith(d) || path2.includes("/" + d))) return false;
-        return codeExts.some((ext) => path2.endsWith(ext)) || path2 === "Dockerfile" || path2 === "Makefile";
+      const isCodeFile = (path3) => {
+        if (skipDirs.some((d) => path3.startsWith(d) || path3.includes("/" + d))) return false;
+        return codeExts.some((ext) => path3.endsWith(ext)) || path3 === "Dockerfile" || path3 === "Makefile";
       };
       const allFiles = (tree.tree || []).filter((f) => f.type === "blob" && isCodeFile(f.path));
       const priority = (p) => {
@@ -1891,6 +1891,52 @@ OUTPUT JSON:
   }
 });
 
+// server/vite.ts
+var vite_exports = {};
+__export(vite_exports, {
+  setupVite: () => setupVite
+});
+import fs2 from "fs";
+import path2, { dirname as dirname2 } from "path";
+import { fileURLToPath as fileURLToPath2 } from "url";
+async function setupVite(app2, server) {
+  const { createServer: createViteServer, createLogger } = await import("vite");
+  const viteLogger = createLogger();
+  const vite = await createViteServer({
+    server: {
+      middlewareMode: true,
+      hmr: { server }
+    },
+    appType: "custom",
+    customLogger: {
+      ...viteLogger,
+      error: (msg, options) => {
+        viteLogger.error(msg, options);
+      }
+    }
+  });
+  app2.use(vite.middlewares);
+  app2.use("/{*path}", async (req, res, next) => {
+    const url = req.originalUrl;
+    try {
+      const clientTemplate = path2.resolve(__dirname2, "..", "index.html");
+      let template = await fs2.promises.readFile(clientTemplate, "utf-8");
+      template = await vite.transformIndexHtml(url, template);
+      res.status(200).set({ "Content-Type": "text/html" }).end(template);
+    } catch (e) {
+      vite.ssrFixStacktrace(e);
+      next(e);
+    }
+  });
+}
+var __filename2, __dirname2;
+var init_vite = __esm({
+  "server/vite.ts"() {
+    __filename2 = fileURLToPath2(import.meta.url);
+    __dirname2 = dirname2(__filename2);
+  }
+});
+
 // server/index.ts
 init_routes();
 import express2 from "express";
@@ -2151,15 +2197,13 @@ function registerParallelRoutes(app2) {
   });
 }
 
-// server/vite.ts
+// server/static.ts
 import express from "express";
 import fs from "fs";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
-import { createServer as createViteServer, createLogger } from "vite";
 var __filename = fileURLToPath(import.meta.url);
 var __dirname = dirname(__filename);
-var viteLogger = createLogger();
 function log(message, source = "express") {
   const formattedTime = (/* @__PURE__ */ new Date()).toLocaleTimeString("en-US", {
     hour: "numeric",
@@ -2169,40 +2213,11 @@ function log(message, source = "express") {
   });
   console.log(`${formattedTime} [${source}] ${message}`);
 }
-async function setupVite(app2, server) {
-  const vite = await createViteServer({
-    server: {
-      middlewareMode: true,
-      hmr: { server }
-    },
-    appType: "custom",
-    customLogger: {
-      ...viteLogger,
-      error: (msg, options) => {
-        viteLogger.error(msg, options);
-      }
-    }
-  });
-  app2.use(vite.middlewares);
-  app2.use("/{*path}", async (req, res, next) => {
-    const url = req.originalUrl;
-    try {
-      const clientTemplate = path.resolve(__dirname, "..", "index.html");
-      let template = await fs.promises.readFile(clientTemplate, "utf-8");
-      template = await vite.transformIndexHtml(url, template);
-      res.status(200).set({ "Content-Type": "text/html" }).end(template);
-    } catch (e) {
-      vite.ssrFixStacktrace(e);
-      next(e);
-    }
-  });
-}
 function serveStatic(app2) {
   const distPath = path.resolve(__dirname, "..", "dist", "public");
   if (!fs.existsSync(distPath)) {
-    throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`
-    );
+    log(`Could not find build directory: ${distPath}, serving API only`);
+    return;
   }
   app2.use(express.static(distPath));
   app2.use("/{*path}", (_req, res) => {
@@ -2217,7 +2232,7 @@ app.use(express2.json());
 app.use(express2.urlencoded({ extended: false }));
 app.use((req, res, next) => {
   const start = Date.now();
-  const path2 = req.path;
+  const path3 = req.path;
   let capturedJsonResponse = void 0;
   const originalResJson = res.json;
   res.json = function(bodyJson, ...args) {
@@ -2226,8 +2241,8 @@ app.use((req, res, next) => {
   };
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path2.startsWith("/api")) {
-      let logLine = `${req.method} ${path2} ${res.statusCode} in ${duration}ms`;
+    if (path3.startsWith("/api")) {
+      let logLine = `${req.method} ${path3} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
@@ -2247,7 +2262,8 @@ app.use((req, res, next) => {
     log(`Server running on port ${PORT}`);
   });
   if (app.get("env") === "development") {
-    await setupVite(app, server);
+    const { setupVite: setupVite2 } = await Promise.resolve().then(() => (init_vite(), vite_exports));
+    await setupVite2(app, server);
   } else {
     serveStatic(app);
   }

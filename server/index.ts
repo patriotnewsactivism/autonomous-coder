@@ -2,7 +2,7 @@ import "./load-env.js";
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import { registerParallelRoutes } from "./parallelRoutes";
-import { setupVite, serveStatic, log } from "./vite";
+import { serveStatic, log } from "./static";
 
 const app = express();
 app.use(cors());
@@ -52,6 +52,7 @@ app.use((req, res, next) => {
   });
 
   if (app.get("env") === "development") {
+    const { setupVite } = await import("./vite");
     await setupVite(app, server);
   } else {
     serveStatic(app);
