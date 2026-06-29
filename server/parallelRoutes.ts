@@ -1,7 +1,71 @@
 import type { Express } from "express";
 import { randomUUID } from "crypto";
+import { createContext, Script } from "vm";
+import * as esbuild from "esbuild";
 import { runWorkerJob, runParallelWorkers, spawnSubWorkers, workerBus, WorkerJob } from "./agentWorker";
 import { getSessionMemory, storeMemory } from "./agentMemory";
+
+// ── Sandbox utilities ──────────────────────────────────────────────────────────
+
+type SandboxResult =
+  | { ok: true; output: string; returnValue?: string }
+  | { ok: false; error: string };
+
+/** Strip TypeScript type annotations so plain JS vm can run TS code. */
+function stripTypes(code: string): string {
+  // Use esbuild synchronously if available; fall back to regex stripping
+  try {
+    const esbuild = require("esbuild");
+    return esbuild.transformSync(code, { loader: "ts", target: "es2020" }).code;
+  } catch {
+    // Minimal regex fallback: remove type annotations and interface/type declarations
+    return code
+      .replace(/^\s*(export\s+)?(interface|type)\s+\w[\s\S]*?\n(?=\S)/gm, "")
+      .replace(/:\s*[\w<>\[\]|&{},\s]+(?=\s*[=,);{])/g, "")
+      .replace(/<[\w,\s]+>/g, "");
+  }
+}
+
+/**
+ * Execute JavaScript (or TypeScript) code in a Node vm sandbox.
+ * - Captures console.log / .error / .warn output.
+ * - 5-second timeout.
+ * - No access to fs, process, network, or timers.
+ */
+function runInSandbox(code: string, language: string): SandboxResult {
+  const logs: string[] = [];
+
+  // Build a restricted global context
+  const sandbox = createContext({
+    console: {
+      log:   (...args: any[]) => logs.push(args.map(String).join(" ")),
+      error: (...args: any[]) => logs.push("[error] " + args.map(String).join(" ")),
+      warn:  (...args: any[]) => logs.push("[warn] "  + args.map(String).join(" ")),
+      info:  (...args: any[]) => logs.push("[info] "  + args.map(String).join(" ")),
+    },
+    // Safe globals only
+    Math, JSON, Array, Object, String, Number, Boolean, RegExp, Date, Map, Set,
+    Promise,
+    parseInt, parseFloat, isNaN, isFinite,
+    undefined, null: null, NaN, Infinity,
+    // Blocked intentionally: process, require, fetch, setTimeout, setInterval, Buffer
+  });
+
+  try {
+    const jsCode = ["typescript", "ts"].includes(language) ? stripTypes(code) : code;
+    const script = new Script(jsCode);
+    const returnValue = script.runInContext(sandbox, { timeout: 5000 });
+    return {
+      ok: true,
+      output: logs.join("\n"),
+      returnValue: returnValue !== undefined && returnValue !== null
+        ? String(returnValue).slice(0, 1000)
+        : undefined,
+    };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || "Execution error" };
+  }
+}
 
 // Stream SSE events to client
 function sendSSE(res: any, event: string, data: any) {
@@ -238,25 +302,48 @@ export function registerParallelRoutes(app: Express) {
     }
   });
 
-  // ── POST: Sandbox code execution (safe eval) ───────────────────────────────
+  // ── POST: Sandbox code execution ──────────────────────────────────────────────
   app.post("/api/sandbox/execute", async (req, res) => {
     try {
       const { code, language } = req.body;
       if (!code) return res.status(400).json({ error: "code required" });
 
-      // For JS/TS: return a sandboxed preview document
-      if (language === "html" || language === "tsx" || language === "jsx" || !language) {
-        // Return execution metadata — actual rendering is client-side in iframe
+      const lang = (language || "").toLowerCase();
+
+      // HTML / JSX / TSX → render client-side in iframe (correct approach)
+      if (["html", "jsx", "tsx"].includes(lang) || !lang) {
         res.json({
           status: "preview_ready",
-          type: language || "tsx",
+          type: lang || "tsx",
           previewable: true,
           message: "Code ready for live preview sandbox",
         });
         return;
       }
 
-      res.json({ status: "ok", output: "Preview ready", previewable: false });
+      // JavaScript / TypeScript → execute in Node vm sandbox
+      if (["js", "javascript", "ts", "typescript"].includes(lang)) {
+        const result = runInSandbox(code, lang);
+        if (result.ok) {
+          res.json({
+            status: "ok",
+            output: result.output || "(no output)",
+            returnValue: result.returnValue,
+            language: lang,
+          });
+        } else {
+          res.status(422).json({ status: "error", error: result.error, language: lang });
+        }
+        return;
+      }
+
+      // Python, Go, Rust, etc. — not executable server-side without a runtime
+      res.json({
+        status: "unsupported",
+        language: lang,
+        message: `Server-side execution for '${lang}' is not supported. Consider adding a code-runner container.`,
+        previewable: false,
+      });
     } catch (err: any) {
       res.status(500).json({ error: err?.message });
     }

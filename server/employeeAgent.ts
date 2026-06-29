@@ -1,7 +1,13 @@
+/**
+ * @deprecated This file is superseded by server/superagent.ts, which is the
+ * active implementation imported by parallelRoutes.ts. This file is kept for
+ * reference only and is not wired into any route. Remove it once superagent.ts
+ * covers all cases you need.
+ */
 
 /**
  * AI Employee — Universal Task Router
- * 
+ *
  * Classifies ANY input (simple or complex) and executes the right pipeline.
  * Simple tasks: answer, research, write, summarize — done in one pass.
  * Complex tasks: plan → decompose → spawn workers → observe → deliver.

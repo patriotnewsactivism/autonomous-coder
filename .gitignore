@@ -1,47 +1,43 @@
-<<<<<<< Updated upstream
-node_modules/
-*.log
-.env
-.env.local
-.env.*.local
-dist/public/assets/*.js.map
-*.tsbuildinfo
-=======
-# Dependencies
+# ── Dependencies ──────────────────────────────────────────────────────────────
 node_modules/
 
-# Build output
+# ── Build output ───────────────────────────────────────────────────────────────
 dist/
 
-# Environment
+# ── Environment ────────────────────────────────────────────────────────────────
 .env
 .env.local
 .env.*.local
 
-# IDE
+# ── IDE ────────────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS
+# ── OS ────────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 
-# Logs
+# ── Logs ──────────────────────────────────────────────────────────────────────
 *.log
 npm-debug.log*
 
-# Runtime
+# ── TypeScript ─────────────────────────────────────────────────────────────────
 *.tsbuildinfo
 
-# Misc
+# ── Test / coverage ────────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ── Tooling caches ─────────────────────────────────────────────────────────────
 .design-sync/
 .ds-sync/
 .kilo/
 .local/
 .gemini-clipboard/
+
+# ── Project-specific ──────────────────────────────────────────────────────────
 autonomous-coder/
 ds-bundle/
 attached_assets/
->>>>>>> Stashed changes

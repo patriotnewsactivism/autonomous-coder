@@ -1,5 +1,4 @@
 import type { Express } from "express";
-import { connectToGitHub } from "../src/lib/github";
 import { storage } from "./storage";
 import {
   buildRequest, parseResponse, parseStreamChunk,
@@ -1013,15 +1012,68 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
+  // /api/github/clone — legacy alias: delegates to /api/github/import logic
   app.post("/api/github/clone", async (req, res) => {
-    // Redirect to the new import endpoint
     try {
-      const { repoUrl } = req.body;
-      if (!repoUrl) {
-        return res.status(400).json({ error: "Repository URL is required" });
+      const { repoUrl, token } = req.body;
+      if (!repoUrl) return res.status(400).json({ error: "Repository URL is required" });
+
+      // Parse owner/repo from URL
+      const match = repoUrl.match(/github\.com[/:]([^/]+)\/([^/]+?)(?:\.git)?(?:$|[/?#])/i);
+      if (!match) return res.status(400).json({ error: "Invalid GitHub URL. Use https://github.com/owner/repo" });
+      const [, owner, repo] = match;
+
+      const headers: Record<string, string> = {
+        Accept: "application/vnd.github.v3+json",
+        "User-Agent": "Autonomous-Coder",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      // Get default branch
+      const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
+      if (!repoRes.ok) {
+        if (repoRes.status === 404) return res.status(404).json({ error: "Repository not found" });
+        return res.status(repoRes.status).json({ error: "GitHub API error" });
       }
-      const result = await connectToGitHub(repoUrl);
-      res.json({ result });
+      const repoData = await repoRes.json();
+      const defaultBranch = repoData.default_branch || "main";
+
+      // Get file tree
+      const treeRes = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`,
+        { headers }
+      );
+      if (!treeRes.ok) return res.status(404).json({ error: "Could not fetch file tree" });
+      const tree = await treeRes.json();
+
+      const skipDirs = ["node_modules/", ".git/", "dist/", "build/", ".next/", "__pycache__/", ".venv/", "vendor/"];
+      const codeExts = [".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs", ".java", ".rb", ".php",
+        ".css", ".scss", ".html", ".json", ".yaml", ".yml", ".md", ".sql", ".sh", ".vue", ".svelte"];
+      const allFiles = (tree.tree || []).filter((f: any) =>
+        f.type === "blob" &&
+        !skipDirs.some((d) => f.path.startsWith(d) || f.path.includes("/" + d)) &&
+        codeExts.some((ext) => f.path.endsWith(ext))
+      );
+
+      const filesToFetch = allFiles.slice(0, 40);
+      const fileResults = await Promise.allSettled(
+        filesToFetch.map(async (f: any) => {
+          const r = await fetch(
+            `https://api.github.com/repos/${owner}/${repo}/contents/${f.path}?ref=${defaultBranch}`,
+            { headers }
+          );
+          if (!r.ok) return null;
+          const data = await r.json();
+          if (data.size > 100000) return null;
+          return { path: f.path, content: Buffer.from(data.content, "base64").toString("utf-8"), size: data.size };
+        })
+      );
+
+      const files = fileResults
+        .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled" && r.value !== null)
+        .map((r) => r.value);
+
+      res.json({ fullName: `${owner}/${repo}`, name: repo, defaultBranch, totalFiles: allFiles.length, loadedFiles: files.length, files });
     } catch (error) {
       res.status(500).json({ error: "Failed to clone repository" });
     }
