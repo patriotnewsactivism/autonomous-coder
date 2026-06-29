@@ -1235,6 +1235,91 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
+  // ── GitHub push endpoint ────────────────────────────────────────────────────
+  // Commits generated files directly to a GitHub repo
+  app.post("/api/github/push", async (req, res) => {
+    try {
+      const { token, fullName, branch = "main", message: commitMsg, files } = req.body;
+      if (!token || !fullName || !files?.length) {
+        return res.status(400).json({ error: "token, fullName, and files are required" });
+      }
+
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github.v3+json",
+        "User-Agent": "Autonomous-Coder",
+        "Content-Type": "application/json",
+      };
+
+      // Get default branch SHA
+      const repoRes = await fetch(`https://api.github.com/repos/${fullName}`, { headers });
+      if (!repoRes.ok) return res.status(404).json({ error: "Repo not found or no access" });
+      const repo = await repoRes.json();
+      const defaultBranch = repo.default_branch || branch;
+
+      const refRes = await fetch(`https://api.github.com/repos/${fullName}/git/ref/heads/${defaultBranch}`, { headers });
+      if (!refRes.ok) return res.status(404).json({ error: `Branch ${defaultBranch} not found` });
+      const { object: { sha: latestSha } } = await refRes.json();
+
+      // Create blobs for each file
+      const blobPromises = (files as Array<{path: string; content: string}>).map(async (file) => {
+        const blobRes = await fetch(`https://api.github.com/repos/${fullName}/git/blobs`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ content: file.content, encoding: "utf-8" }),
+        });
+        const blob = await blobRes.json();
+        return { path: file.path, mode: "100644", type: "blob", sha: blob.sha };
+      });
+      const tree = await Promise.all(blobPromises);
+
+      // Create tree
+      const treeRes = await fetch(`https://api.github.com/repos/${fullName}/git/trees`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ base_tree: latestSha, tree }),
+      });
+      const newTree = await treeRes.json();
+
+      // Create commit
+      const commitRes = await fetch(`https://api.github.com/repos/${fullName}/git/commits`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          message: commitMsg || `feat: autonomous coder update — ${files.length} file(s)`,
+          tree: newTree.sha,
+          parents: [latestSha],
+        }),
+      });
+      const commit = await commitRes.json();
+
+      // Update branch ref
+      await fetch(`https://api.github.com/repos/${fullName}/git/refs/heads/${defaultBranch}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ sha: commit.sha }),
+      });
+
+      res.json({ success: true, commitSha: commit.sha, branch: defaultBranch, url: commit.html_url });
+    } catch (error: any) {
+      res.status(500).json({ error: error?.message || "Push failed" });
+    }
+  });
+
+  // ── Auto-save history endpoint ──────────────────────────────────────────────
+  // Persists a snapshot of generated files so users can restore any version
+  app.post("/api/autosave", async (req, res) => {
+    try {
+      const { goal, files, agentSequence } = req.body;
+      if (!files?.length) return res.status(400).json({ error: "files required" });
+      const project = await storage.createProject({ goal: goal || "Untitled", files: JSON.stringify(files), agentSequence: JSON.stringify(agentSequence || []) });
+      res.json(project);
+    } catch (error) {
+      res.status(500).json({ error: "Autosave failed" });
+    }
+  });
+
+
 }
 
 

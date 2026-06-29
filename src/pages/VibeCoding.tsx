@@ -1,5 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Sparkles, Activity, FileCode, Brain, Github, History, Clock, Link2, Check, Coins, RotateCcw, ChevronDown, DollarSign, Save, FolderGit2, AlertTriangle } from "lucide-react";
+import {
+  Sparkles, Activity, Brain, Github, History, Clock,
+  Coins, RotateCcw, ChevronDown, DollarSign, Save,
+  FolderGit2, AlertTriangle, Rocket, GitBranch, CheckCircle2,
+  XCircle, Upload, RefreshCw, Eye, Terminal, Zap, Play
+} from "lucide-react";
 import Header from "@/components/Header";
 import VibeInput, { BuildMode, ProjectType } from "@/components/agents/VibeInput";
 import AgentPipeline from "@/components/agents/AgentPipeline";
@@ -9,6 +14,7 @@ import CodeWorkspace from "@/components/agents/CodeWorkspace";
 import ChatIteration from "@/components/agents/ChatIteration";
 import GitHubConnect from "@/components/GitHubConnect";
 import RepoImport from "@/components/RepoImport";
+import SandboxPanel from "@/components/agents/SandboxPanel";
 import { toast } from "sonner";
 import {
   AgentType, AgentMessage, AgentTask, GeneratedFile,
@@ -21,11 +27,9 @@ import {
   type ProviderStatusResult,
 } from "@/lib/agents";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { useSandbox } from "@/hooks/useSandbox";
-import SandboxPanel from "@/components/agents/SandboxPanel";
-
 
 interface ProjectHistory {
   id: number;
@@ -34,10 +38,142 @@ interface ProjectHistory {
   createdAt: string;
 }
 
+const API_BASE = (import.meta as any).env?.VITE_API_URL || "";
+
+// ── Deploy Panel ─────────────────────────────────────────────────────────────
+function DeployPanel({ files, goal }: { files: GeneratedFile[]; goal: string }) {
+  const [token, setToken] = useState(() => localStorage.getItem("gh_deploy_token") || "");
+  const [repo, setRepo] = useState(() => localStorage.getItem("gh_deploy_repo") || "");
+  const [commitMsg, setCommitMsg] = useState("");
+  const [pushing, setPushing] = useState(false);
+  const [lastCommit, setLastCommit] = useState<{ sha: string; url?: string } | null>(null);
+
+  useEffect(() => {
+    if (token) localStorage.setItem("gh_deploy_token", token);
+  }, [token]);
+  useEffect(() => {
+    if (repo) localStorage.setItem("gh_deploy_repo", repo);
+  }, [repo]);
+
+  const push = async () => {
+    if (!token || !repo) { toast.error("Enter your GitHub token and repo (owner/name)"); return; }
+    if (!files.length) { toast.error("No files to push yet"); return; }
+    setPushing(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/github/push`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, fullName: repo, files, message: commitMsg || `feat: autonomous coder — ${files.length} files` }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setLastCommit({ sha: data.commitSha?.slice(0, 7), url: data.url });
+      toast.success(`✅ Pushed ${files.length} files to ${repo}`);
+      setCommitMsg("");
+    } catch (e: any) {
+      toast.error(`Push failed: ${e.message}`);
+    } finally {
+      setPushing(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-2">
+        <input
+          type="password"
+          placeholder="GitHub Personal Access Token"
+          value={token}
+          onChange={e => setToken(e.target.value)}
+          className="w-full text-xs bg-muted/40 border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+        <input
+          type="text"
+          placeholder="owner/repo-name"
+          value={repo}
+          onChange={e => setRepo(e.target.value)}
+          className="w-full text-xs bg-muted/40 border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+        <input
+          type="text"
+          placeholder={`Commit message (optional)`}
+          value={commitMsg}
+          onChange={e => setCommitMsg(e.target.value)}
+          className="w-full text-xs bg-muted/40 border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+      </div>
+
+      <button
+        onClick={push}
+        disabled={pushing || !files.length}
+        className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        {pushing ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+        {pushing ? "Pushing…" : `Push ${files.length} file${files.length !== 1 ? "s" : ""} to GitHub`}
+      </button>
+
+      {lastCommit && (
+        <div className="flex items-center gap-2 text-[11px] text-emerald-400 bg-emerald-400/10 rounded-lg px-3 py-2">
+          <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
+          <span>Committed <code className="font-mono">{lastCommit.sha}</code></span>
+          {lastCommit.url && (
+            <a href={lastCommit.url} target="_blank" rel="noopener noreferrer" className="ml-auto underline opacity-70 hover:opacity-100">view</a>
+          )}
+        </div>
+      )}
+
+      {files.length === 0 && (
+        <p className="text-[11px] text-muted-foreground text-center py-1">Run a build first to generate files</p>
+      )}
+
+      <div className="border-t border-border/40 pt-3">
+        <p className="text-[10px] text-muted-foreground mb-2 font-medium uppercase tracking-wide">One-click deploys (after push)</p>
+        <div className="space-y-1.5">
+          {[
+            { name: "Vercel", url: "https://vercel.com/import", color: "text-foreground" },
+            { name: "Render", url: "https://dashboard.render.com/select-repo", color: "text-teal-400" },
+            { name: "Railway", url: "https://railway.app/new", color: "text-violet-400" },
+            { name: "Netlify", url: "https://app.netlify.com/start", color: "text-cyan-400" },
+          ].map(p => (
+            <a key={p.name} href={p.url} target="_blank" rel="noopener noreferrer"
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/30 hover:bg-muted/60 text-xs ${p.color} transition-colors`}>
+              <Rocket className="h-3 w-3" />
+              Deploy to {p.name}
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── History Panel ────────────────────────────────────────────────────────────
+function HistoryPanel({ history, onLoad }: { history: ProjectHistory[]; onLoad: (id: number) => void }) {
+  if (!history.length) return (
+    <p className="text-xs text-muted-foreground text-center py-8">No saved projects yet. Build something!</p>
+  );
+  return (
+    <div className="space-y-2">
+      {history.map(p => (
+        <button key={p.id} onClick={() => onLoad(p.id)}
+          className="w-full text-left px-3 py-2.5 rounded-lg bg-muted/30 hover:bg-muted/60 border border-border/30 transition-colors">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-medium text-foreground truncate pr-2">{p.goal || "Untitled"}</span>
+            <span className="text-[10px] text-muted-foreground flex-shrink-0">{p.fileCount || 0} files</span>
+          </div>
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <Clock className="h-2.5 w-2.5" />
+            <span>{new Date(p.createdAt).toLocaleString()}</span>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── Main Component ───────────────────────────────────────────────────────────
 const VibeCoding = () => {
   const qc = useQueryClient();
-
-  // ── Live sandbox (SSE + incremental file preview) ────────────────────────
   const sandbox = useSandbox();
 
   const [isRunning, setIsRunning] = useState(false);
@@ -48,10 +184,9 @@ const VibeCoding = () => {
   const [tasks, setTasks] = useState<AgentTask[]>([]);
   const [currentTaskId, setCurrentTaskId] = useState<number | undefined>();
   const [generatedFiles, setGeneratedFiles] = useState<GeneratedFile[]>([]);
-  const [activeTab, setActiveTab] = useState<"build" | "import" | "github" | "history">("build");
+  const [currentGoal, setCurrentGoal] = useState("");
   const [sessionTokens, setSessionTokens] = useState(getSessionTokens);
   const [sessionCost, setSessionCost] = useState(getSessionCost);
-  const [copiedLink, setCopiedLink] = useState(false);
   const [lastProjectId, setLastProjectId] = useState<number | null>(null);
   const [selectedModel, setSelectedModelState] = useState(getSelectedModel);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
@@ -61,11 +196,12 @@ const VibeCoding = () => {
   const [providerStatus, setProviderStatus] = useState<ProviderStatusResult | null>(null);
   const [buildMode, setBuildMode] = useState<BuildMode>("vibe");
   const [projectType, setProjectType] = useState<ProjectType | null>(null);
+  const [rightTab, setRightTab] = useState<"preview" | "code" | "logs">("preview");
+  const [bottomTab, setBottomTab] = useState<"activity" | "tasks" | "deploy" | "history" | "import" | "github">("activity");
   const stopRef = useRef(false);
   const seedFilesRef = useRef<GeneratedFile[]>([]);
   const seedRepoRef = useRef<string>("");
 
-  // Fetch available models
   useEffect(() => {
     fetchModels().then((data) => {
       setAvailableModels(data.models);
@@ -74,66 +210,60 @@ const VibeCoding = () => {
         setSelectedModel(data.default);
         setSelectedModelState(data.default);
       }
-    }).catch(() => { /* models endpoint not available yet */ });
+    }).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    fetchProviderStatus().then(setProviderStatus).catch(() => {});
-  }, []);
+  useEffect(() => { fetchProviderStatus().then(setProviderStatus).catch(() => {}); }, []);
 
-  // Sync token/cost display on storage changes
   useEffect(() => {
-    const handler = () => {
-      setSessionTokens(getSessionTokens());
-      setSessionCost(getSessionCost());
-    };
+    const handler = () => { setSessionTokens(getSessionTokens()); setSessionCost(getSessionCost()); };
     window.addEventListener("storage", handler);
-    const interval = setInterval(handler, 2000); // Poll for streaming updates
+    const interval = setInterval(handler, 2000);
     return () => { window.removeEventListener("storage", handler); clearInterval(interval); };
   }, []);
 
-  // Auto-save on file/message changes
+  // ── Autosave to localStorage + backend on every file change ─────────────
   useEffect(() => {
-    if (generatedFiles.length > 0) {
-      autoSave({
-        goal: "",
-        files: generatedFiles,
-        agentSequence: agentSequence as AgentType[],
-        messages: messages.map(m => ({ agent: m.agent, type: m.type, content: m.content })),
-        timestamp: Date.now(),
-      });
-      setAutoSaved(true);
-      const t = setTimeout(() => setAutoSaved(false), 2000);
-      return () => clearTimeout(t);
-    }
-  }, [generatedFiles, messages]);
+    if (generatedFiles.length === 0) return;
+    autoSave({
+      goal: currentGoal,
+      files: generatedFiles,
+      agentSequence: agentSequence as AgentType[],
+      messages: messages.map(m => ({ agent: m.agent, type: m.type, content: m.content })),
+      timestamp: Date.now(),
+    });
+    setAutoSaved(true);
+    const t = setTimeout(() => setAutoSaved(false), 2000);
+    return () => clearTimeout(t);
+  }, [generatedFiles]);
 
-  // Restore auto-save on mount
+  // Restore autosave on mount
   useEffect(() => {
     const saved = getAutoSave();
-    if (saved && saved.files.length > 0 && generatedFiles.length === 0) {
-      const age = Date.now() - saved.timestamp;
-      if (age < 24 * 60 * 60 * 1000) { // Less than 24h old
+    if (saved?.files?.length && generatedFiles.length === 0) {
+      if (Date.now() - saved.timestamp < 24 * 60 * 60 * 1000) {
         setGeneratedFiles(saved.files);
-        if (saved.agentSequence.length) setAgentSequence(saved.agentSequence);
-        toast.info("Restored auto-saved project");
+        setCurrentGoal(saved.goal || "");
+        if (saved.agentSequence?.length) setAgentSequence(saved.agentSequence);
+        toast.info("Restored auto-saved session");
       }
     }
   }, []);
 
   const { data: projectHistory = [] } = useQuery<ProjectHistory[]>({
     queryKey: ["/api/projects/recent"],
-    queryFn: () => fetch("/api/projects/recent?limit=20").then((r) => r.json()),
+    queryFn: () => fetch(`${API_BASE}/api/projects/recent?limit=30`).then(r => r.json()),
     refetchOnWindowFocus: false,
+    refetchInterval: 30000,
   });
 
   const saveMutation = useMutation({
     mutationFn: (data: { goal: string; files: GeneratedFile[]; agentSequence: AgentType[] }) =>
-      fetch("/api/projects", {
+      fetch(`${API_BASE}/api/projects`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-      }).then((r) => r.json()),
+      }).then(r => r.json()),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["/api/projects/recent"] });
       if (data?.id) setLastProjectId(data.id);
@@ -142,39 +272,29 @@ const VibeCoding = () => {
 
   const loadProject = async (id: number) => {
     try {
-      const res = await fetch(`/api/projects/${id}`);
+      const res = await fetch(`${API_BASE}/api/projects/${id}`);
       const project = await res.json();
       setGeneratedFiles(project.files || []);
+      setCurrentGoal(project.goal || "");
       setTasks([]); setMessages([]); setAgentSequence([]);
       setLastProjectId(id);
-      setActiveTab("build");
-      toast.success(`Loaded project`);
+      toast.success("Project loaded");
     } catch { toast.error("Failed to load project"); }
   };
 
-  const copyShareLink = () => {
-    if (!lastProjectId) return;
-    const url = `${window.location.origin}/project/${lastProjectId}`;
-    navigator.clipboard.writeText(url);
-    setCopiedLink(true);
-    toast.success("Share link copied!");
-    setTimeout(() => setCopiedLink(false), 2000);
-  };
-
-  // ── Message helpers ───────────────────────────────────────────────────────
   const addMessage = useCallback((agent: AgentType, type: AgentMessage["type"], content: string, extras?: Partial<AgentMessage>) => {
-    setMessages((prev) => [...prev, { id: `${Date.now()}-${Math.random()}`, agent, type, content, timestamp: new Date(), ...extras }]);
+    setMessages(prev => [...prev, { id: `${Date.now()}-${Math.random()}`, agent, type, content, timestamp: new Date(), ...extras }]);
   }, []);
 
   const addStreamingMessage = useCallback((agent: AgentType) => {
     const id = `stream-${Date.now()}-${Math.random()}`;
-    setMessages((prev) => [...prev, { id, agent, type: "streaming", content: "", timestamp: new Date() }]);
-    return (token: string) => setMessages((prev) => prev.map((m) => m.id === id ? { ...m, content: m.content + token } : m));
+    setMessages(prev => [...prev, { id, agent, type: "streaming", content: "", timestamp: new Date() }]);
+    return (token: string) => setMessages(prev => prev.map(m => m.id === id ? { ...m, content: m.content + token } : m));
   }, []);
 
   const finalizeStreamingMessage = useCallback((agent: AgentType, finalContent: string) => {
-    setMessages((prev) => {
-      const idx = [...prev].reverse().findIndex((m) => m.agent === agent && m.type === "streaming");
+    setMessages(prev => {
+      const idx = [...prev].reverse().findIndex(m => m.agent === agent && m.type === "streaming");
       if (idx === -1) return prev;
       const realIdx = prev.length - 1 - idx;
       return prev.map((m, i) => i === realIdx ? { ...m, type: "result", content: finalContent } : m);
@@ -184,681 +304,398 @@ const VibeCoding = () => {
   // ── Main pipeline ─────────────────────────────────────────────────────────
   const runAutonomousAgents = useCallback(async (rawGoal: string, mode: BuildMode = "vibe", pt?: ProjectType) => {
     setIsRunning(true);
+    setCurrentGoal(rawGoal);
     sandbox.setBuilding(true);
     sandbox.reset();
     sandbox.addLog("⚡ Build started");
-    if (seedFilesRef.current.length > 0) {
-      sandbox.injectFiles(seedFilesRef.current);
-      sandbox.addLog(`🌱 Seeded build with ${seedFilesRef.current.length} imported file(s)`);
-    }
     setBuildMode(mode);
     if (pt) setProjectType(pt);
     stopRef.current = false;
     setMessages([]); setTasks([]); setGeneratedFiles([]);
     setCompletedAgents([]); setAgentSequence([]);
     setLastProjectId(null);
+    setRightTab("preview"); // Always show preview when build starts
+    setBottomTab("activity");
 
-    // Seed context from imported GitHub repository
     const seedFiles = seedFilesRef.current;
     const seedRepo = seedRepoRef.current;
     const seedHeader = seedFiles.length > 0
-      ? `[IMPORTED REPOSITORY: ${seedRepo || "GitHub"}]\n${seedFiles.length} file(s) have been imported as the starting codebase. Preserve the existing structure and conventions, then extend and improve upon them. Seed files: ${seedFiles.map(f => f.path).join(", ")}\n\n`
+      ? `[IMPORTED REPOSITORY: ${seedRepo || "GitHub"}]\n${seedFiles.length} file(s) imported as starting codebase. Preserve structure. Seed files: ${seedFiles.map(f => f.path).join(", ")}\n\n`
       : "";
     const baseGoal = `${seedHeader}${rawGoal}`;
-
-    // Enhance goal for Superagent mode
     const goal = mode === "superagent" && pt
-      ? `[SUPERAGENT MODE - ${pt.label.toUpperCase()}]\nProject Type: ${pt.label}\nTech Stack: ${pt.techStack}\nSpecialization: ${pt.agentHint}\n\nUser Request: ${baseGoal}\n\nIMPORTANT: Work with FULL AUTONOMY. Build the complete project end-to-end. Make all technical decisions independently. Only flag critical business decisions. Produce production-ready, deployable code.`
+      ? `[SUPERAGENT MODE - ${pt.label.toUpperCase()}]\nProject Type: ${pt.label}\nTech Stack: ${pt.techStack}\nSpecialization: ${pt.agentHint}\n\nUser Request: ${baseGoal}\n\nWork with FULL AUTONOMY. Build end-to-end. Produce production-ready, deployable code.`
       : baseGoal;
+
     resetSessionTokens();
     setSessionTokens(0);
-
     const allFiles: GeneratedFile[] = [...seedFiles];
     const tick = () => setSessionTokens(getSessionTokens());
 
     try {
       // STEP 1: Orchestrator
       setCurrentAgent("orchestrator");
-      sandbox.addLog(`🤖 [orchestrator] analyzing goal…`);
-      addMessage("orchestrator", "thinking", "Analyzing your goal and building the optimal agent pipeline...");
-      const onOrchestratorToken = addStreamingMessage("orchestrator");
-
-      let orchestration: OrchestratorResult;
+      addMessage("orchestrator", "thinking", "Analyzing your request and designing agent strategy…");
+      const orchStream = addStreamingMessage("orchestrator");
+      let orchResult: OrchestratorResult;
       try {
-        orchestration = await runOrchestrator(goal, { existingFiles: seedFiles }, onOrchestratorToken);
+        orchResult = await runOrchestrator(goal, orchStream);
         tick();
-      } catch {
-        orchestration = {
-          understanding: goal, approach: "Standard build pipeline",
-          agentSequence: ["strategist", "builder", "reviewer", "fixer"],
-          requiresDatabase: false, requiresAPI: false, requiresUI: false,
-          requiresTesting: false, requiresSecurity: false,
-          projectType: "webapp", estimatedSteps: 4, readyToStart: true,
-        };
+        finalizeStreamingMessage("orchestrator", orchResult.strategy);
+        setAgentSequence(orchResult.agentSequence);
+        setCompletedAgents(prev => [...prev, "orchestrator"]);
+        addMessage("orchestrator", "result", `Strategy: ${orchResult.agentSequence.join(" → ")}`, { tokenCount: orchResult.tokenCount });
+        if (stopRef.current) return;
+      } catch (e: any) {
+        addMessage("orchestrator", "error", e.message);
+        throw e;
+      }
+
+      // STEP 2: Strategist
+      setCurrentAgent("strategist");
+      addMessage("strategist", "thinking", "Breaking down into concrete tasks…");
+      const stratStream = addStreamingMessage("strategist");
+      let stratResult: StrategyResult;
+      try {
+        stratResult = await runStrategist(goal, orchResult, stratStream);
+        tick();
+        finalizeStreamingMessage("strategist", stratResult.approach);
+        setTasks(stratResult.tasks.map((t, i) => ({ ...t, id: i + 1, status: "pending" as const })));
+        setCompletedAgents(prev => [...prev, "strategist"]);
+        addMessage("strategist", "result", `${stratResult.tasks.length} tasks planned`, { tokenCount: stratResult.tokenCount });
+        if (stopRef.current) return;
+      } catch (e: any) {
+        addMessage("strategist", "error", e.message);
+        throw e;
+      }
+
+      // STEP 3: Builder
+      setCurrentAgent("builder");
+      const builderStream = addStreamingMessage("builder");
+      let buildResult: BuildResult;
+      try {
+        buildResult = await runBuilder(goal, orchResult, stratResult, seedFiles, builderStream);
+        tick();
+        finalizeStreamingMessage("builder", `Generated ${buildResult.files.length} files`);
+        if (buildResult.files.length > 0) {
+          allFiles.push(...buildResult.files);
+          setGeneratedFiles([...allFiles]);
+          sandbox.injectFiles(buildResult.files);
+        }
+        setCompletedAgents(prev => [...prev, "builder"]);
+        addMessage("builder", "result", `${buildResult.files.length} files generated`, { tokenCount: buildResult.tokenCount });
+        if (stopRef.current) return;
+      } catch (e: any) {
+        addMessage("builder", "error", e.message);
+        throw e;
+      }
+
+      // STEP 4: Specialists (parallel)
+      const specialists = orchResult.agentSequence.filter(a => !["orchestrator","strategist","builder","reviewer","fixer"].includes(a));
+      if (specialists.length > 0 && !stopRef.current) {
+        const specResults = await Promise.allSettled(
+          specialists.map(async (spec) => {
+            if (stopRef.current) return;
+            setCurrentAgent(spec);
+            const stream = addStreamingMessage(spec);
+            try {
+              const result = await runSpecialist(spec, goal, orchResult, buildResult, stream);
+              tick();
+              finalizeStreamingMessage(spec, result.output || `${spec} complete`);
+              if (result.files?.length) {
+                allFiles.push(...result.files);
+                setGeneratedFiles([...allFiles]);
+                sandbox.injectFiles(result.files);
+              }
+              setCompletedAgents(prev => [...prev, spec]);
+              addMessage(spec, "result", result.output?.slice(0, 120) || "Complete", { tokenCount: result.tokenCount });
+            } catch (e: any) {
+              addMessage(spec, "error", e.message);
+            }
+          })
+        );
       }
 
       if (stopRef.current) return;
-      // Ensure agentSequence is always a valid array
-      if (!Array.isArray(orchestration.agentSequence)) {
-        orchestration.agentSequence = ["strategist", "builder", "reviewer", "fixer"];
-      }
-      const pipeline: AgentType[] = ["orchestrator", ...orchestration.agentSequence];
-      setAgentSequence(pipeline);
-      finalizeStreamingMessage("orchestrator", orchestration.understanding);
-      setCompletedAgents(["orchestrator"]);
-      sandbox.addLog(`✅ [orchestrator] done — pipeline: ${orchestration.agentSequence.join(" → ")}`);
 
-      // STEP 2: Strategist
-      if (orchestration.agentSequence.includes("strategist")) {
-        setCurrentAgent("strategist");
-      sandbox.addLog(`🤖 [strategist] planning architecture…`);
-        addMessage("strategist", "thinking", "Creating architecture and task breakdown...");
-        const onToken = addStreamingMessage("strategist");
-        const strategy = await runStrategist(goal, { existingFiles: seedFiles }, onToken);
-        if (stopRef.current) return;
+      // STEP 5: Reviewer
+      setCurrentAgent("reviewer");
+      const reviewStream = addStreamingMessage("reviewer");
+      let reviewResult: ReviewResult;
+      try {
+        reviewResult = await runReviewer(goal, allFiles, reviewStream);
         tick();
-        setTasks(strategy.tasks.map((t) => ({ ...t, status: "pending" as const })));
-        finalizeStreamingMessage("strategist", `${strategy.tasks.length} tasks · Stack: ${strategy.techStack.join(", ")} · Complexity: ${strategy.estimatedComplexity}`);
-        setCompletedAgents((prev) => [...prev, "strategist"]);
-
-        // Specialist agents
-        for (const specialistType of ["database", "api", "ui"] as AgentType[]) {
-          if (!orchestration.agentSequence.includes(specialistType)) continue;
-          if (stopRef.current) return;
-          setCurrentAgent(specialistType);
-          const labels: Record<string, string> = { database: "Designing database schema...", api: "Building API routes...", ui: "Designing UI component system..." };
-          addMessage(specialistType, "thinking", labels[specialistType]);
-          const onSpecToken = addStreamingMessage(specialistType);
-          try {
-            const result = await runSpecialist(specialistType, `${specialistType} for: ${goal}`, { tasks: strategy.tasks, existingFiles: allFiles, techStack: strategy.techStack }, onSpecToken);
-            tick();
-            if (result.files) { allFiles.push(...result.files); setGeneratedFiles([...allFiles]); sandbox.injectFiles(result.files); sandbox.addLog(`📁 [${specialistType}] wrote ${result.files.length} file(s)`); }
-            finalizeStreamingMessage(specialistType, result.summary || result.explanation || `${specialistType} complete`);
-          } catch { addMessage(specialistType, "error", `${specialistType} agent failed — continuing`, { retryable: false }); }
-          setCompletedAgents((prev) => [...prev, specialistType]);
-        }
-
-        // STEP 3: Builder
-        setCurrentAgent("builder");
-      sandbox.addLog(`🤖 [builder] generating code…`);
-        for (let i = 0; i < strategy.tasks.length; i++) {
-          if (stopRef.current) return;
-          const task = strategy.tasks[i];
-          setCurrentTaskId(task.id);
-          setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status: "in_progress" as const } : t));
-          addMessage("builder", "action", `Building: ${task.title}`);
-          const onBuildToken = addStreamingMessage("builder");
-          try {
-            const buildResult = await runBuilder(task, { existingFiles: allFiles, techStack: strategy.techStack, goal }, onBuildToken);
-            tick();
-            if (buildResult.files) { allFiles.push(...buildResult.files); setGeneratedFiles([...allFiles]); sandbox.injectFiles(buildResult.files); sandbox.addLog(`🔨 [builder] ${task.title} — ${buildResult.files.length} file(s) written`); }
-            setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status: "completed" as const } : t));
-            finalizeStreamingMessage("builder", buildResult.explanation || `Done: ${task.title}`);
-          } catch {
-            setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status: "failed" as const } : t));
-            addMessage("builder", "error", `Failed: ${task.title}`, { retryable: true, retryGoal: task.title });
-          }
-        }
-        setCompletedAgents((prev) => [...prev, "builder"]);
-
-        // Post-build specialists
-        for (const specialistType of ["testing", "security", "deployer"] as AgentType[]) {
-          if (!orchestration.agentSequence.includes(specialistType) || allFiles.length === 0) continue;
-          if (stopRef.current) return;
-          setCurrentAgent(specialistType);
-          const labels: Record<string, string> = { testing: "Writing test suite...", security: "Performing security audit...", deployer: "Generating deployment config..." };
-          addMessage(specialistType, "thinking", labels[specialistType]);
-          const onToken = addStreamingMessage(specialistType);
-          try {
-            const result = await runSpecialist(specialistType, `${specialistType} for: ${goal}`, { files: allFiles }, onToken);
-            tick();
-            if (result.files) { allFiles.push(...result.files); setGeneratedFiles([...allFiles]); sandbox.injectFiles(result.files); sandbox.addLog(`📁 [${specialistType}] wrote ${result.files.length} file(s)`); }
-            finalizeStreamingMessage(specialistType, result.summary || result.explanation || `${specialistType} complete`);
-          } catch { addMessage(specialistType, "error", `${specialistType} agent failed — continuing`); }
-          setCompletedAgents((prev) => [...prev, specialistType]);
-        }
-
-        // STEP 4: Reviewer
-        if (!stopRef.current && allFiles.length > 0 && orchestration.agentSequence.includes("reviewer")) {
-          setCurrentAgent("reviewer");
-      sandbox.addLog(`🤖 [reviewer] reviewing quality…`);
-          addMessage("reviewer", "thinking", `Reviewing ${allFiles.length} files for quality...`);
-          const onRevToken = addStreamingMessage("reviewer");
-          const review = await runReviewer(allFiles, onRevToken);
-          if (stopRef.current) return;
-          tick();
-          const criticals = review.issues?.filter((i) => i.severity === "critical").length || 0;
-          const warnings = review.issues?.filter((i) => i.severity === "warning").length || 0;
-          finalizeStreamingMessage("reviewer", `Score: ${review.overallScore}/10 · ${criticals} critical · ${warnings} warnings · ${review.summary}`);
-          setCompletedAgents((prev) => [...prev, "reviewer"]);
-
-          // STEP 5: Fixer
-          if (orchestration.agentSequence.includes("fixer")) {
-            setCurrentAgent("fixer");
-      sandbox.addLog(`🤖 [fixer] fixing issues…`);
-            if (review.issues && review.issues.length > 0) {
-              addMessage("fixer", "thinking", `Fixing ${review.issues.length} issues...`);
-              const onFixToken = addStreamingMessage("fixer");
-              const fixes = await runFixer(review.issues, allFiles, onFixToken);
-              if (stopRef.current) return;
-              tick();
-              if (fixes.fixes) {
-                const fixedFiles = allFiles.map((file) => {
-                  const fix = fixes.fixes.find((f) => f.file === file.path);
-                  return fix ? { ...file, content: fix.fixedCode } : file;
-                });
-                setGeneratedFiles(fixedFiles);
-                allFiles.splice(0, allFiles.length, ...fixedFiles);
-              }
-              finalizeStreamingMessage("fixer", fixes.summary || `Applied ${fixes.fixes?.length || 0} fixes`);
-            } else {
-              addMessage("fixer", "result", "No issues to fix — code is production-ready! ✨");
-            }
-            setCompletedAgents((prev) => [...prev, "fixer"]);
-          }
-        }
+        finalizeStreamingMessage("reviewer", reviewResult.summary);
+        setCompletedAgents(prev => [...prev, "reviewer"]);
+        addMessage("reviewer", "result", reviewResult.summary, { tokenCount: reviewResult.tokenCount });
+        if (stopRef.current) return;
+      } catch (e: any) {
+        addMessage("reviewer", "error", e.message);
+        reviewResult = { issues: [], summary: "Review skipped", tokenCount: 0, costUsd: 0 };
       }
 
-      // Save (final persist to server + local auto-save)
-      if (allFiles.length > 0) {
-        saveMutation.mutate({ goal, files: allFiles, agentSequence: pipeline });
-        autoSave({ goal, files: allFiles, agentSequence: pipeline, messages: messages.map(m => ({ agent: m.agent, type: m.type, content: m.content })), timestamp: Date.now() });
-      }
-
-      setCurrentAgent(undefined);
-      const finalTokens = getSessionTokens();
-      setSessionTokens(finalTokens);
-      toast.success(`Build complete! ${allFiles.length} files · ${finalTokens.toLocaleString()} tokens used 🎉`);
-    } catch (error) {
-      addMessage(currentAgent || "orchestrator", "error", error instanceof Error ? error.message : "An error occurred");
-      toast.error("Agent pipeline encountered an error");
-    } finally {
-      
-      // ── OBSERVATION LOOP: agent observes its own preview and self-corrects ──
-      const MAX_OBSERVE_LOOPS = 3;
-      let observeLoop = 0;
-      // Give iframe a moment to render before we check errors
-      await new Promise(r => setTimeout(r, 1500));
-
-      while (observeLoop < MAX_OBSERVE_LOOPS && !stopRef.current) {
-        // Read preview errors captured by useSandbox's iframe message listener
-        // We access the current state via a ref-like snapshot — use a small delay
-        // to let React state settle after the last injectFiles call
-        await new Promise(r => setTimeout(r, 800));
-
-        // snapshot current errors via a captured ref — we use a closure trick
-        const currentErrors = sandbox.state.previewErrors;
-
-        if (currentErrors.length === 0) {
-          sandbox.addLog(`👁️ Preview looks clean — no errors detected (loop ${observeLoop + 1})`);
-          break;
-        }
-
-        observeLoop++;
-        sandbox.startObserving();
-        sandbox.addLog(`👁️ Observed ${currentErrors.length} preview error(s) — running self-correction loop ${observeLoop}/${MAX_OBSERVE_LOOPS}`);
-
-        // Clear errors before fixer runs so next loop sees fresh errors
-        sandbox.clearPreviewErrors();
-        sandbox.startCorrecting();
-
-        // Run fixer with the observed errors as explicit context
+      // STEP 6: Fixer (if issues)
+      if (reviewResult.issues?.length > 0 && !stopRef.current) {
         setCurrentAgent("fixer");
-        addMessage("fixer", "thinking", `Observing preview errors and self-correcting (loop ${observeLoop})…`);
-        const onObserveFixToken = addStreamingMessage("fixer");
-
+        const fixStream = addStreamingMessage("fixer");
         try {
-          const previewIssues = currentErrors.map((e, i) => ({
-            id: `preview-error-${i}`,
-            severity: "critical" as const,
-            type: "bug" as const,
-            file: "preview",
-            message: e,
-            suggestion: "Fix this runtime error so the preview renders correctly",
-          }));
-
-          const observeFix = await runFixer(
-            previewIssues,
-            allFiles,
-            onObserveFixToken
-          );
+          const fixResult: FixResult = await runFixer(goal, allFiles, reviewResult, fixStream);
           tick();
-
-          if (observeFix.fixes?.length > 0 || observeFix.additionalImprovements?.length > 0) {
-            // Apply fixes to allFiles
-            const fixedPaths = new Set([
-              ...observeFix.fixes.map((f: any) => f.file),
-              ...observeFix.additionalImprovements.map((f: any) => f.file),
-            ]);
-
-            observeFix.fixes.forEach((fix: any) => {
-              const existing = allFiles.findIndex(f => f.path === fix.file);
-              if (existing !== -1 && fix.fixedCode) {
-                allFiles[existing] = { ...allFiles[existing], content: fix.fixedCode };
-              }
+          finalizeStreamingMessage("fixer", `Fixed ${fixResult.files.length} files`);
+          if (fixResult.files.length > 0) {
+            fixResult.files.forEach(fix => {
+              const idx = allFiles.findIndex(f => f.path === fix.path);
+              if (idx >= 0) allFiles[idx] = { ...allFiles[idx], content: fix.fixedCode };
             });
-
-            observeFix.additionalImprovements.forEach((imp: any) => {
-              const existing = allFiles.findIndex(f => f.path === imp.file);
-              if (existing !== -1 && imp.code) {
-                allFiles[existing] = { ...allFiles[existing], content: imp.code };
-              }
-            });
-
-            const patchedFiles = allFiles.filter(f => fixedPaths.has(f.path));
             setGeneratedFiles([...allFiles]);
-            sandbox.injectFiles(patchedFiles);
-            sandbox.addLog(`🔧 Self-correction loop ${observeLoop}: patched ${patchedFiles.length} file(s)`);
-            finalizeStreamingMessage("fixer", `Loop ${observeLoop}: fixed ${observeFix.fixes.length} error(s) observed in preview`);
-          } else {
-            finalizeStreamingMessage("fixer", `Loop ${observeLoop}: no fixable changes needed`);
-            break;
+            sandbox.injectFiles(allFiles.filter(f => fixResult.files.some(fx => fx.path === f.path)));
           }
-        } catch {
-          addMessage("fixer", "error", `Observation loop ${observeLoop} failed — stopping`);
-          break;
+          setCompletedAgents(prev => [...prev, "fixer"]);
+          addMessage("fixer", "result", `${fixResult.files.length} files patched`, { tokenCount: fixResult.tokenCount });
+        } catch (e: any) {
+          addMessage("fixer", "error", e.message);
         }
-
-        // Wait for preview to re-render before checking again
-        await new Promise(r => setTimeout(r, 2000));
       }
 
-      if (observeLoop >= MAX_OBSERVE_LOOPS) {
-        sandbox.addLog(`👁️ Max observation loops (${MAX_OBSERVE_LOOPS}) reached`);
-      }
-      sandbox.addLog("🏁 Agent has finished observing and correcting its own work");
-
-setIsRunning(false);
-      sandbox.setBuilding(false);
+      // ── Complete ──
       setCurrentAgent(undefined);
-      setCurrentTaskId(undefined);
+      setTasks(prev => prev.map(t => ({ ...t, status: "completed" as const })));
+      sandbox.setBuilding(false);
+
+      // Save to backend
+      if (allFiles.length > 0) {
+        saveMutation.mutate({ goal: rawGoal, files: allFiles, agentSequence: orchResult.agentSequence });
+      }
+
+      addMessage("orchestrator", "result", `✅ Build complete — ${allFiles.length} files, ${sessionTokens.toLocaleString()} tokens`, { tokenCount: 0 });
+      toast.success(`Build complete — ${allFiles.length} files generated`);
+
+    } catch (e: any) {
+      setCurrentAgent(undefined);
+      sandbox.setBuilding(false);
+      addMessage("orchestrator", "error", e.message || "Build failed");
+      toast.error(`Build failed: ${e.message}`);
+    } finally {
+      setIsRunning(false);
+      sandbox.setBuilding(false);
     }
-  }, [addMessage, addStreamingMessage, finalizeStreamingMessage, saveMutation]);
+  }, [addMessage, addStreamingMessage, finalizeStreamingMessage, sandbox]);
 
-  const handleStop = useCallback(() => {
-    stopRef.current = true;
-    setIsRunning(false);
-    setCurrentAgent(undefined);
-    toast.info("Pipeline stopped");
-  }, []);
+  const handleStop = () => { stopRef.current = true; setIsRunning(false); sandbox.setBuilding(false); toast.info("Build stopped"); };
 
-  const handleRetry = useCallback((agent: AgentMessage["agent"], goal?: string) => {
-    if (!goal) return;
-    toast.info(`Retrying ${agent}...`);
-    // For now, just re-run the whole pipeline with the original goal — full retry support
-  }, []);
-
-  const handleGitHubFilesLoaded = useCallback((files: GeneratedFile[], repoName: string) => {
+  const handleImportFiles = (files: GeneratedFile[], repoName: string) => {
     seedFilesRef.current = files;
     seedRepoRef.current = repoName;
-    setGeneratedFiles(files);
-    sandbox.injectFiles(files);
-    addMessage("orchestrator", "action", `Loaded ${files.length} files from ${repoName} as build seed`);
-    setActiveTab("build");
-    toast.success(`Loaded ${files.length} files from ${repoName} as build seed`);
-  }, [addMessage, sandbox]);
+    toast.success(`Imported ${files.length} files from ${repoName}`);
+    setBottomTab("activity");
+  };
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background grid-pattern">
+    <div className="min-h-screen bg-background">
       <Header />
 
-      <main className="container mx-auto px-4 sm:px-6 pt-20 sm:pt-28 pb-12 sm:pb-16">
-        {/* Hero */}
-        <section className="text-center mb-8 sm:mb-12 animate-fade-in">
-          <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3 sm:px-4 py-1.5 sm:py-2 mb-4 sm:mb-6">
-            <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 text-primary" />
-            <span className="text-xs sm:text-sm font-medium text-primary uppercase tracking-wide">
-              Fully Autonomous · {agentSequence.length > 0 ? `${agentSequence.length} Agents Active` : "Up to 11 Agents"}
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-4 sm:mb-6 leading-tight px-2">
-            {buildMode === "superagent" ? <>Your <span className="text-emerald-400">Superagent</span> is ready</> : <>Vibe code like a <span className="gradient-text-primary">beast</span></>}
-          </h1>
-          <p className="text-sm sm:text-lg text-muted-foreground max-w-2xl mx-auto px-2">
-            {buildMode === "superagent" ? "Delegate your project. Full autonomy. Production-ready output." : "Describe your idea. The Orchestrator assembles the optimal agent team, then reviews and deploys."}
-          </p>
-
-          {/* Model selector + Cost tracker */}
-          <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
-            {/* Model Selector */}
-            <div className="relative">
+      <main className="pt-16 h-screen flex flex-col overflow-hidden">
+        {/* Top bar: input + controls */}
+        <div className="flex-shrink-0 border-b border-border/40 bg-background/95 backdrop-blur px-4 py-3">
+          <div className="flex items-center gap-3 max-w-none">
+            {/* Model selector */}
+            <div className="relative flex-shrink-0">
               <button
                 onClick={() => setShowModelMenu(!showModelMenu)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/40 border border-border/40 text-xs text-muted-foreground hover:bg-muted/60 transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground hover:bg-muted/60"
               >
                 <Brain className="h-3 w-3 text-purple-400" />
-                <span>{selectedModel || "Select model"}</span>
+                <span className="max-w-[120px] truncate">{selectedModel || "Model"}</span>
                 <ChevronDown className="h-3 w-3" />
               </button>
               {showModelMenu && (
-                <div className="absolute top-full mt-1 left-0 right-0 sm:left-0 sm:right-auto z-50 min-w-0 sm:min-w-[200px] bg-popover border border-border rounded-lg shadow-lg p-1">
-                  {availableModels.map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => {
-                        setSelectedModel(m);
-                        setSelectedModelState(m);
-                        setShowModelMenu(false);
-                        toast.success(`Switched to ${m}`);
-                      }}
-                      className={`w-full text-left px-3 py-2 rounded-md text-xs transition-colors ${
-                        m === selectedModel ? "bg-primary/10 text-primary" : "hover:bg-muted text-foreground"
-                      }`}
-                    >
-                      <div className="font-medium">{m}</div>
-                      {modelPricing[m] && (
-                        <div className="text-[10px] text-muted-foreground">
-                          ${modelPricing[m].input}/M in · ${modelPricing[m].output}/M out
-                        </div>
-                      )}
+                <div className="absolute top-full mt-1 left-0 z-50 min-w-[200px] bg-popover border border-border rounded-lg shadow-xl p-1">
+                  {availableModels.map(m => (
+                    <button key={m} onClick={() => { setSelectedModel(m); setSelectedModelState(m); setShowModelMenu(false); }}
+                      className={`w-full text-left px-3 py-1.5 rounded-md text-xs ${m === selectedModel ? "bg-primary/10 text-primary" : "hover:bg-muted text-foreground"}`}>
+                      {m}
                     </button>
                   ))}
-                  {availableModels.length <= 1 && (
-                    <div className="px-3 py-2 text-[10px] text-muted-foreground">
-                      Configure more providers in .env to add models here
+                </div>
+              )}
+            </div>
+
+            {/* Main input */}
+            <div className="flex-1 min-w-0">
+              <VibeInput onSubmit={runAutonomousAgents} isRunning={isRunning} onStop={handleStop} />
+            </div>
+
+            {/* Status badges */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-lg border border-border/30">
+                <DollarSign className="h-3 w-3 text-emerald-400" />
+                <span className="font-mono">{formatCost(sessionCost)}</span>
+                <span className="opacity-40">·</span>
+                <Coins className="h-3 w-3 text-amber-400" />
+                <span>{sessionTokens.toLocaleString()}</span>
+                <button onClick={() => { resetSessionTokens(); resetSessionCost(); setSessionTokens(0); setSessionCost(0); }}>
+                  <RotateCcw className="h-2.5 w-2.5 ml-1 opacity-50 hover:opacity-100" />
+                </button>
+              </div>
+              {autoSaved && (
+                <span className="flex items-center gap-1 text-[11px] text-emerald-400">
+                  <Save className="h-3 w-3" /> Saved
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Agent pipeline strip */}
+          <div className="mt-2 overflow-x-auto">
+            <AgentPipeline currentAgent={currentAgent} completedAgents={completedAgents} agentSequence={agentSequence} compact />
+          </div>
+        </div>
+
+        {/* Provider warning */}
+        {providerStatus && !providerStatus.anyConfigured && (
+          <div className="flex-shrink-0 bg-amber-500/10 border-b border-amber-500/30 px-4 py-2 flex items-center gap-2 text-xs text-amber-400">
+            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+            <span>No AI providers configured. Set at least one API key (Groq/Gemini are free) to start building.</span>
+          </div>
+        )}
+
+        {/* ── Main workspace: split pane ── */}
+        <div className="flex-1 flex overflow-hidden min-h-0">
+
+          {/* LEFT: Preview / Code / Logs */}
+          <div className="flex-1 flex flex-col min-w-0 border-r border-border/40">
+            {/* Right pane tab bar */}
+            <div className="flex-shrink-0 flex items-center gap-0.5 px-3 py-2 border-b border-border/40 bg-muted/20">
+              {[
+                { id: "preview", icon: Eye, label: "Live Preview" },
+                { id: "code", icon: Terminal, label: "Code" },
+                { id: "logs", icon: Activity, label: "Logs" },
+              ].map(({ id, icon: Icon, label }) => (
+                <button key={id} onClick={() => setRightTab(id as any)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${rightTab === id ? "bg-background text-foreground shadow-sm border border-border/50" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"}`}>
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </button>
+              ))}
+              <div className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
+                {generatedFiles.length > 0 && <span>{generatedFiles.length} files</span>}
+                {isRunning && (
+                  <span className="flex items-center gap-1 text-cyan-400 animate-pulse">
+                    <Zap className="h-3 w-3" /> Building…
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-hidden">
+              {rightTab === "preview" && (
+                <SandboxPanel
+                  files={generatedFiles}
+                  status={sandbox.state.status}
+                  buildLog={sandbox.state.buildLog}
+                  workerEvents={sandbox.state.workerEvents}
+                  agentScores={sandbox.state.agentScores}
+                  activeAgents={sandbox.state.activeAgents}
+                  completedAgents={sandbox.state.completedAgents}
+                  error={sandbox.state.error}
+                  previewErrors={sandbox.state.previewErrors}
+                  observationCount={sandbox.state.observationCount}
+                  className="h-full"
+                />
+              )}
+              {rightTab === "code" && (
+                <div className="h-full overflow-auto">
+                  <CodeWorkspace files={generatedFiles} onFilesChange={setGeneratedFiles} />
+                </div>
+              )}
+              {rightTab === "logs" && (
+                <div className="h-full overflow-auto bg-black/40 font-mono text-[11px] p-4 space-y-0.5">
+                  {sandbox.state.buildLog.length === 0 && (
+                    <p className="text-muted-foreground text-center py-8">Logs will appear here when a build starts</p>
+                  )}
+                  {sandbox.state.buildLog.map((line, i) => (
+                    <div key={i} className="text-slate-300 leading-5">{line}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT: Activity / Tasks / Deploy / History / Import */}
+          <div className="w-80 flex-shrink-0 flex flex-col min-h-0">
+            {/* Bottom pane tab bar */}
+            <div className="flex-shrink-0 flex flex-wrap items-center gap-0.5 px-2 py-2 border-b border-border/40 bg-muted/20">
+              {[
+                { id: "activity", icon: Activity, label: "Activity" },
+                { id: "tasks", icon: Brain, label: "Tasks" },
+                { id: "deploy", icon: Rocket, label: "Deploy" },
+                { id: "history", icon: History, label: "History" },
+                { id: "import", icon: FolderGit2, label: "Import" },
+                { id: "github", icon: Github, label: "GitHub" },
+              ].map(({ id, icon: Icon, label }) => (
+                <button key={id} onClick={() => setBottomTab(id as any)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${bottomTab === id ? "bg-background text-foreground shadow-sm border border-border/50" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"}`}>
+                  <Icon className="h-3 w-3" />
+                  {label}
+                  {id === "history" && projectHistory.length > 0 && (
+                    <span className="bg-primary/20 text-primary rounded-full px-1 text-[9px]">{projectHistory.length}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1 overflow-auto p-3">
+              {bottomTab === "activity" && (
+                <div className="space-y-3">
+                  <AgentActivityFeed messages={messages} />
+                  {messages.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                      <p className="text-xs">Agent activity appears here as your build runs</p>
                     </div>
                   )}
                 </div>
               )}
-            </div>
 
-            {/* Live Cost Badge */}
-            <motion.div
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/40 border border-border/40 text-xs text-muted-foreground"
-            >
-              <DollarSign className="h-3 w-3 text-emerald-400" />
-              <span className="font-mono">{formatCost(sessionCost)}</span>
-              <span className="text-muted-foreground/50">·</span>
-              <Coins className="h-3 w-3 text-amber-400" />
-              <span>{sessionTokens.toLocaleString()}</span>
-              <button onClick={() => { resetSessionTokens(); resetSessionCost(); setSessionTokens(0); setSessionCost(0); }}
-                className="text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-                title="Reset counters"
-              >
-                <RotateCcw className="h-2.5 w-2.5" />
-              </button>
-            </motion.div>
-
-            {/* Auto-save indicator */}
-            {autoSaved && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0 }}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] text-emerald-400"
-              >
-                <Save className="h-2.5 w-2.5" />
-                <span>Saved</span>
-              </motion.div>
-            )}
-          </div>
-        </section>
-
-        {/* Provider status warning */}
-        {providerStatus && !providerStatus.anyConfigured && (
-          <section className="mb-6 sm:mb-8 max-w-3xl mx-auto animate-fade-in">
-            <div className="glass-card rounded-xl border border-amber-500/30 p-4 sm:p-5 bg-amber-500/5">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-amber-400 mt-0.5 flex-shrink-0" />
+              {bottomTab === "tasks" && (
                 <div>
-                  <h3 className="text-sm font-semibold text-foreground mb-1">No AI Providers Configured</h3>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Agent pipelines require at least one API key. All providers below offer free tiers:
-                  </p>
-                  <div className="space-y-1 mb-3">
-                    {providerStatus.freeUnconfigured.map((p) => (
-                      <a
-                        key={p.name}
-                        href={p.signupUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block text-xs text-primary hover:underline"
-                      >
-                        {p.label} — set <code className="text-[10px] bg-muted px-1 rounded">{p.envVar}</code>
-                      </a>
-                    ))}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">
-                    Add keys to your <code className="bg-muted px-1 rounded">.env</code> file and restart the server.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* Pipeline */}
-        <section className="mb-6 sm:mb-8 overflow-x-auto">
-          <AgentPipeline currentAgent={currentAgent} completedAgents={completedAgents} agentSequence={agentSequence} />
-        </section>
-
-        {/* Tabs */}
-        <div className="flex gap-1 mb-6 max-w-3xl mx-auto bg-muted/30 rounded-xl p-1 border border-border/40">
-          {[
-            { id: "build", icon: Sparkles, label: "Vibe Build" },
-            { id: "import", icon: FolderGit2, label: "Import" },
-            { id: "github", icon: Github, label: "GitHub" },
-            { id: "history", icon: History, label: "History" },
-          ].map(({ id, icon: Icon, label }) => (
-            <button key={id} onClick={() => setActiveTab(id as any)}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs sm:text-sm font-medium transition-all ${
-                activeTab === id ? "bg-background text-foreground shadow-sm border border-border/50" : "text-muted-foreground hover:text-foreground"
-              }`} data-testid={`tab-${id}`}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              <span className="hidden xs:inline">{label}</span>
-              {id === "history" && projectHistory.length > 0 && (
-                <span className="text-[11px] bg-primary/20 text-primary rounded-full px-1.5 py-0.5">
-                  {projectHistory.length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* ── Build Tab ── */}
-        {activeTab === "build" && (
-          <>
-            <section className="max-w-3xl mx-auto mb-8 sm:mb-12">
-              <VibeInput onSubmit={(goal, mode, pt) => runAutonomousAgents(goal, mode, pt)} isRunning={isRunning} onStop={handleStop} />
-            </section>
-
-            <div className="grid md:grid-cols-3 gap-4 sm:gap-8">
-              {/* Left - Tasks + Activity */}
-              <div className="space-y-4 sm:space-y-6 order-2 md:order-1">
-                <div className="glass-card rounded-xl border border-border/50 p-4 sm:p-6">
-                  <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                    <Brain className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                    <h3 className="text-sm sm:text-base font-semibold text-foreground">Tasks</h3>
-                    <span className="ml-auto text-[10px] sm:text-xs text-muted-foreground">
-                      {tasks.filter((t) => t.status === "completed").length}/{tasks.length}
-                    </span>
-                  </div>
                   {tasks.length > 0
                     ? <TaskList tasks={tasks} currentTaskId={currentTaskId} />
-                    : <p className="text-xs sm:text-sm text-muted-foreground text-center py-6 sm:py-8">Tasks appear after Strategist runs</p>
+                    : <p className="text-xs text-muted-foreground text-center py-8">Tasks appear after Strategist runs</p>
                   }
                 </div>
+              )}
 
-                <div className="glass-card rounded-xl border border-border/50 p-4 sm:p-6">
-                  <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                    <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                    <h3 className="text-sm sm:text-base font-semibold text-foreground">Agent Activity</h3>
-                  </div>
-                  <AgentActivityFeed messages={messages} currentAgent={currentAgent} onRetry={handleRetry} />
+              {bottomTab === "deploy" && (
+                <div>
+                  <p className="text-[11px] text-muted-foreground mb-3">Push generated files directly to GitHub, then deploy in one click.</p>
+                  <DeployPanel files={generatedFiles} goal={currentGoal} />
                 </div>
-              </div>
+              )}
 
-              {/* Right - Generated Code + Chat */}
-              <div className="md:col-span-2 order-1 md:order-2 space-y-4 sm:space-y-6">
-                <div className="glass-card rounded-xl border border-border/50 p-4 sm:p-6">
-                  <div className="flex items-center gap-2 mb-4 sm:mb-6">
-                    <FileCode className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                    <h3 className="text-sm sm:text-base font-semibold text-foreground">Generated Code</h3>
-                    <span className="ml-auto text-[10px] sm:text-xs text-muted-foreground">{generatedFiles.length} files</span>
+              {bottomTab === "history" && (
+                <HistoryPanel history={projectHistory} onLoad={loadProject} />
+              )}
 
-                    {/* Share button */}
-                    {lastProjectId && (
-                      <button
-                        onClick={copyShareLink}
-                        className="flex items-center gap-1 text-[10px] sm:text-xs px-2 py-1 rounded-lg border border-border/40 hover:border-primary/40 hover:bg-primary/5 transition-all text-muted-foreground hover:text-primary"
-                        data-testid="button-share"
-                      >
-                        {copiedLink ? <Check className="h-3 w-3 text-emerald-400" /> : <Link2 className="h-3 w-3" />}
-                        {copiedLink ? "Copied!" : "Share"}
-                      </button>
-                    )}
-                  </div>
-                  <SandboxPanel
-                files={sandbox.state.files.length > 0 ? sandbox.state.files : generatedFiles}
-                status={sandbox.state.status}
-                buildLog={sandbox.state.buildLog}
-                workerEvents={sandbox.state.workerEvents}
-                agentScores={sandbox.state.agentScores}
-                activeAgents={sandbox.state.activeAgents}
-                completedAgents={sandbox.state.completedAgents}
-                error={sandbox.state.error}
-                previewErrors={sandbox.state.previewErrors}
-                observationCount={sandbox.state.observationCount}
-                className="h-full"
-              />
-                </div>
+              {bottomTab === "import" && (
+                <RepoImport onImport={handleImportFiles} />
+              )}
 
+              {bottomTab === "github" && (
+                <GitHubConnect />
+              )}
+            </div>
+
+            {/* Chat iteration — always visible at bottom */}
+            {generatedFiles.length > 0 && (
+              <div className="flex-shrink-0 border-t border-border/40">
                 <ChatIteration files={generatedFiles} onFilesUpdated={setGeneratedFiles} isAgentRunning={isRunning} />
               </div>
-            </div>
-          </>
-        )}
-
-        {/* ── Import Tab ── */}
-        {activeTab === "import" && (
-          <div className="max-w-2xl mx-auto space-y-4">
-            <RepoImport onFilesLoaded={handleGitHubFilesLoaded} />
-            {seedFilesRef.current.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="glass-card rounded-xl border border-primary/30 p-4 space-y-3"
-              >
-                <p className="text-sm font-medium text-foreground">
-                  {seedFilesRef.current.length} files loaded from {seedRepoRef.current}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  The AI agents now have the full codebase as context. Go to the Build tab and describe what you want them to do:
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    "Finish all incomplete features and TODOs",
-                    "Fix all bugs and type errors",
-                    "Add tests for all existing functions",
-                    "Refactor for better performance",
-                    "Add dark mode support",
-                  ].map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      onClick={() => {
-                        setActiveTab("build");
-                        // Pre-fill the goal input by triggering the build with the suggestion
-                        const input = document.querySelector<HTMLInputElement>("[data-testid='input-goal']");
-                        if (input) {
-                          input.value = suggestion;
-                          input.dispatchEvent(new Event("input", { bubbles: true }));
-                        }
-                      }}
-                      className="text-[10px] sm:text-xs px-2.5 py-1.5 rounded-lg border border-border/40 bg-primary/5 text-foreground hover:bg-primary/10 hover:border-primary/30 transition-all"
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-                <Button
-                  onClick={() => setActiveTab("build")}
-                  size="sm"
-                  className="w-full"
-                  data-testid="button-go-to-build"
-                >
-                  Go to Build →
-                </Button>
-              </motion.div>
-            )}
-            <div className="text-center">
-              <p className="text-[10px] sm:text-xs text-muted-foreground">
-                Import any public GitHub repo — no token needed. Private repos need a GitHub PAT.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* ── GitHub Tab ── */}
-        {activeTab === "github" && (
-          <div className="max-w-2xl mx-auto">
-            <GitHubConnect onFilesLoaded={handleGitHubFilesLoaded} />
-          </div>
-        )}
-
-        {/* ── History Tab ── */}
-        {activeTab === "history" && (
-          <div className="max-w-2xl mx-auto space-y-3">
-            <p className="text-xs text-muted-foreground mb-4 text-center">
-              Load any previous build to continue working on it.
-            </p>
-            {projectHistory.length === 0 ? (
-              <div className="text-center py-12 border border-dashed border-border/40 rounded-xl">
-                <History className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">No builds yet</p>
-              </div>
-            ) : (
-              projectHistory.map((project) => (
-                <motion.div key={project.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                  className="glass-card rounded-xl border border-border/50 p-4 flex items-start gap-3 hover:border-primary/30 transition-all"
-                >
-                  <div className="h-9 w-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
-                    <FileCode className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{project.goal}</p>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                        <FileCode className="h-3 w-3" /> {project.fileCount} files
-                      </span>
-                      <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {new Date(project.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/project/${project.id}`); toast.success("Share link copied!"); }}
-                      className="text-[10px] text-muted-foreground hover:text-primary transition-colors"
-                      title="Copy share link"
-                    >
-                      <Link2 className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => loadProject(project.id)}
-                      className="text-xs text-primary hover:underline px-2 py-1 rounded hover:bg-primary/10 transition-colors"
-                      data-testid={`button-load-project-${project.id}`}
-                    >
-                      Load
-                    </button>
-                  </div>
-                </motion.div>
-              ))
             )}
           </div>
-        )}
-      </main>
-
-      <footer className="border-t border-border/50 py-8">
-        <div className="container mx-auto px-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            Autonomous Code Wizard · Up to 11 Specialized AI Agents · Powered by DeepSeek V3.2
-          </p>
         </div>
-      </footer>
+      </main>
     </div>
   );
 };
