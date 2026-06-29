@@ -227,7 +227,7 @@ export default function Superagent() {
         </AnimatePresence>
 
         {/* Main content — result + sandbox side by side when files present */}
-        <div className={`flex-1 grid gap-4 ${hasFiles ? "md:grid-cols-2" : "grid-cols-1"}`}>
+        <div className="flex-1 grid gap-4 md:grid-cols-2">
 
           {/* Result / output panel */}
           <div className="flex flex-col gap-4">
@@ -280,7 +280,7 @@ export default function Superagent() {
             )}
 
             {/* Build log when no file output */}
-            {!hasFiles && sandbox.state.buildLog.length > 0 && (
+            {sandbox.state.buildLog.length > 0 && sandbox.state.files.length === 0 && (
               <div className="bg-[#0b1120] border border-white/10 rounded-2xl p-4 font-mono text-[11px] space-y-0.5 max-h-48 overflow-y-auto">
                 {sandbox.state.buildLog.map((line, i) => (
                   <div key={i} className={`${line.startsWith("✅") ? "text-emerald-400" : line.startsWith("❌") ? "text-red-400" : line.startsWith("⚡") ? "text-cyan-400" : "text-slate-500"}`}>
@@ -291,9 +291,8 @@ export default function Superagent() {
             )}
           </div>
 
-          {/* Sandbox panel — only shown when files generated */}
-          {hasFiles && (
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
+          {/* Sandbox panel — always visible, shows idle state before files arrive */}
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
               className="min-h-[500px]">
               <SandboxPanel
                 files={sandbox.state.files.length > 0 ? sandbox.state.files : (result?.files || [])}
@@ -309,7 +308,6 @@ export default function Superagent() {
                 className="h-full"
               />
             </motion.div>
-          )}
         </div>
       </div>
     </div>

@@ -548,7 +548,7 @@ const VibeCoding = () => {
 
           {/* Agent pipeline strip */}
           <div className="mt-2 overflow-x-auto">
-            <AgentPipeline currentAgent={currentAgent} completedAgents={completedAgents} agentSequence={agentSequence} compact />
+            <AgentPipeline currentAgent={currentAgent} completedAgents={completedAgents} agentSequence={agentSequence} />
           </div>
         </div>
 
@@ -606,7 +606,7 @@ const VibeCoding = () => {
               )}
               {rightTab === "code" && (
                 <div className="h-full overflow-auto">
-                  <CodeWorkspace files={generatedFiles} onFilesChange={setGeneratedFiles} />
+                  <CodeWorkspace files={generatedFiles} onFilesUpdated={setGeneratedFiles} />
                 </div>
               )}
               {rightTab === "logs" && (
