@@ -2,9 +2,9 @@ FROM node:22-slim AS builder
 
 WORKDIR /app
 
-# Install all deps including optional platform binaries (rollup, esbuild need them)
+# Install all dependencies including platform-specific native binaries (esbuild needs them)
 COPY package.json package-lock.json ./
-RUN npm install --ignore-scripts=false
+RUN npm ci
 
 # Copy source and build
 COPY . .
@@ -15,13 +15,14 @@ FROM node:22-slim
 
 WORKDIR /app
 
-# Install only production dependencies
+# Install only production dependencies (keep optional deps so esbuild binary is available)
 COPY package.json package-lock.json ./
-RUN npm install --omit=dev --no-optional
+RUN npm ci --omit=dev
 
 # Copy built artifacts from builder
 COPY --from=builder /app/dist ./dist
 
+ENV NODE_ENV=production
 ENV PORT=10000
 EXPOSE 10000
 
