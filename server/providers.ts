@@ -117,7 +117,7 @@ function findProviderForModel(modelId: string): ProviderConfig | null {
 /** Get the fallback chain — models from active providers, ordered by preference */
 export function getFallbackChain(): string[] {
   const chain: string[] = [];
-  const order: ProviderName[] = ["deepseek", "groq", "gemini", "cerebras", "github", "cohere"];
+  const order: ProviderName[] = ["gemini", "deepseek", "groq", "cerebras", "github", "cohere"];
   for (const name of order) {
     if (!isProviderActive(name)) continue;
     // Add the first (primary) model from each provider
@@ -197,12 +197,16 @@ function buildOpenAIRequest(provider: ProviderConfig, model: string, systemPromp
 
 function buildGeminiRequest(provider: ProviderConfig, model: string, systemPrompt: string, userMessage: string, maxTokens: number, stream: boolean) {
   const action = stream ? "streamGenerateContent" : "generateContent";
-  const url = `${provider.endpoint}/models/${model}:${action}?key=${provider.apiKey}${stream ? "&alt=sse" : ""}`;
+  const url = `${provider.endpoint}/models/${model}:${action}${stream ? "?alt=sse" : ""}`;
   return {
     url,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": provider.apiKey,
+    },
     body: {
-      contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n${userMessage}` }] }],
+      systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
+      contents: [{ role: "user", parts: [{ text: userMessage }] }],
       generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7 },
     },
   };
