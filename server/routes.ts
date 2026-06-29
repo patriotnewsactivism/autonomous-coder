@@ -1312,7 +1312,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     try {
       const { goal, files, agentSequence } = req.body;
       if (!files?.length) return res.status(400).json({ error: "files required" });
-      const project = await storage.createProject({ goal: goal || "Untitled", files: JSON.stringify(files), agentSequence: JSON.stringify(agentSequence || []) });
+      const project = await storage.createProject({ goal: goal || "Untitled", files: JSON.stringify(files), agentSequence: JSON.stringify(agentSequence || []), fileCount: Array.isArray(files) ? files.length : 0 });
       res.json(project);
     } catch (error) {
       res.status(500).json({ error: "Autosave failed" });

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import Header from "@/components/Header";
 import VibeInput, { BuildMode, ProjectType } from "@/components/agents/VibeInput";
+import CompactInput from "@/components/agents/CompactInput";
 import AgentPipeline from "@/components/agents/AgentPipeline";
 import AgentActivityFeed from "@/components/agents/AgentActivityFeed";
 import TaskList from "@/components/agents/TaskList";
@@ -27,8 +28,7 @@ import {
   type ProviderStatusResult,
 } from "@/lib/agents";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
 import { useSandbox } from "@/hooks/useSandbox";
 
 interface ProjectHistory {
@@ -523,7 +523,7 @@ const VibeCoding = () => {
 
             {/* Main input */}
             <div className="flex-1 min-w-0">
-              <VibeInput onSubmit={runAutonomousAgents} isRunning={isRunning} onStop={handleStop} />
+              <CompactInput onSubmit={runAutonomousAgents} isRunning={isRunning} onStop={handleStop} />
             </div>
 
             {/* Status badges */}
@@ -648,7 +648,7 @@ const VibeCoding = () => {
             <div className="flex-1 overflow-auto p-3">
               {bottomTab === "activity" && (
                 <div className="space-y-3">
-                  <AgentActivityFeed messages={messages} />
+                  <AgentActivityFeed messages={messages} workerEvents={sandbox.state.workerEvents} isRunning={isRunning} />
                   {messages.length === 0 && (
                     <div className="text-center py-8 text-muted-foreground">
                       <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-30" />
@@ -679,11 +679,11 @@ const VibeCoding = () => {
               )}
 
               {bottomTab === "import" && (
-                <RepoImport onImport={handleImportFiles} />
+                <RepoImport onFilesLoaded={handleImportFiles} />
               )}
 
               {bottomTab === "github" && (
-                <GitHubConnect />
+                <GitHubConnect onFilesLoaded={handleImportFiles} />
               )}
             </div>
 
