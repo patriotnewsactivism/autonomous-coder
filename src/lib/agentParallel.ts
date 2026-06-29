@@ -7,7 +7,8 @@ export interface WorkerEvent {
       | "worker:failed" | "worker:retrying" | "worker:spawned"
       | "parallel:start" | "parallel:done" | "memory:stored" | "sandbox:update"
       | "superagent:progress" | "superagent:classified" | "superagent:classifying"
-      | "superagent:epic:start" | "superagent:epic:done" | "superagent:done";
+      | "superagent:epic:start" | "superagent:epic:done" | "superagent:done"
+      | "debate:start" | "debate:thinking" | "debate:argument" | "debate:verdict";
   jobId?: string;
   agent?: string;
   sessionId?: string;
@@ -22,6 +23,11 @@ export interface WorkerEvent {
   avgScore?: number;
   message?: string;
   classification?: any;
+  proposal?: string;
+  operationType?: string;
+  role?: string;
+  argument?: string;
+  result?: any;
 }
 
 export interface ParallelBuildResult {
@@ -65,7 +71,8 @@ export async function runParallelBuild(
       const eventTypes = [
         "worker:status", "worker:thinking", "worker:eval", "worker:done",
         "worker:failed", "worker:retrying", "worker:spawned",
-        "parallel:start", "parallel:done"
+        "parallel:start", "parallel:done",
+        "debate:start", "debate:thinking", "debate:argument", "debate:verdict"
       ];
       eventTypes.forEach(type => {
         es!.addEventListener(type, (e: MessageEvent) => {

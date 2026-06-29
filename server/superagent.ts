@@ -12,6 +12,7 @@
 import { callAI, callAIStream, parseJsonResponse } from "./routes";
 import { storeMemory, retrieveMemory } from "./agentMemory";
 import { runWorkerJob, runParallelWorkers, spawnSubWorkers, workerBus, WorkerJob } from "./agentWorker";
+import { runDebate } from "./debate";
 import { randomUUID } from "crypto";
 
 // ── Task classification ───────────────────────────────────────────────────────
@@ -189,6 +190,23 @@ async function executeComplex(
     const r = await runWorkerJob({ ...job, context: ctx });
     results.push(r);
     if (r.output) ctx = { ...ctx, [`${job.agent}Output`]: r.output };
+  }
+
+  // ── Debate Phase ──
+  if (ctx.strategistOutput) {
+    workerBus.emit("superagent:progress", { sessionId, msg: "⚖️ Debating the architectural plan..." });
+    const proposal = typeof ctx.strategistOutput === "string" ? ctx.strategistOutput : JSON.stringify(ctx.strategistOutput, null, 2);
+    const debate = await runDebate(sessionId, proposal, goal, "architectural", model);
+    
+    if (debate.verdict === "ESCALATE") {
+      throw new Error(`Debate escalated to human review: ${debate.escalationReason || debate.moderatorReasoning}`);
+    }
+    if (debate.verdict === "REFINE") {
+      ctx = { ...ctx, debateRefinements: debate.refinements };
+      workerBus.emit("superagent:progress", { sessionId, msg: "🔧 Debate refined the plan. Proceeding with adjustments..." });
+    } else {
+      workerBus.emit("superagent:progress", { sessionId, msg: "✅ Debate approved the plan. Proceeding..." });
+    }
   }
 
   if (parallelMid.length > 0) {

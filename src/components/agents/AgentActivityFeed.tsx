@@ -22,6 +22,10 @@ function WorkerEventRow({ event }: { event: WorkerEvent }) {
     "worker:spawned": <GitBranch className="h-3 w-3 text-cyan-400" />,
     "parallel:start": <Zap className="h-3 w-3 text-cyan-400" />,
     "parallel:done": <Activity className="h-3 w-3 text-emerald-400" />,
+    "debate:start": <Activity className="h-3 w-3 text-fuchsia-400" />,
+    "debate:thinking": <Brain className="h-3 w-3 text-fuchsia-400 animate-pulse" />,
+    "debate:argument": <Activity className="h-3 w-3 text-amber-400" />,
+    "debate:verdict": <Star className="h-3 w-3 text-emerald-400" />,
   } as Record<string, JSX.Element>;
 
   const labels = {
@@ -33,6 +37,10 @@ function WorkerEventRow({ event }: { event: WorkerEvent }) {
     "worker:spawned": `Spawned ${event.count} sub-workers: ${(event.agents || []).join(", ")}`,
     "parallel:start": `Parallel build started`,
     "parallel:done": `All ${event.totalAgents} agents done — avg score ${event.avgScore?.toFixed(1)}/10`,
+    "debate:start": `Debate started: ${event.operationType || "architectural"} change`,
+    "debate:thinking": `Debate ${event.role} is thinking...`,
+    "debate:argument": `Debate ${event.role} presented argument`,
+    "debate:verdict": `Debate concluded: ${event.result?.verdict}`,
   } as Record<string, string>;
 
   const colors = {
@@ -44,6 +52,10 @@ function WorkerEventRow({ event }: { event: WorkerEvent }) {
     "parallel:done": "border-l-emerald-500/50 bg-emerald-950/20",
     "worker:eval": "border-l-amber-500/30 bg-amber-950/10",
     "worker:thinking": "border-l-purple-500/30 bg-purple-950/10",
+    "debate:start": "border-l-fuchsia-500/30 bg-fuchsia-950/10",
+    "debate:thinking": "border-l-fuchsia-500/30 bg-fuchsia-950/10",
+    "debate:argument": "border-l-amber-500/30 bg-amber-950/10",
+    "debate:verdict": "border-l-emerald-500/30 bg-emerald-950/10",
   } as Record<string, string>;
 
   return (

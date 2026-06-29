@@ -193,6 +193,30 @@ export function useSandbox() {
       }
     });
 
+    es.addEventListener("debate:start", (e: MessageEvent) => {
+      const ev: WorkerEvent = JSON.parse(e.data);
+      setState(s => ({ ...s, workerEvents: [...s.workerEvents, ev] }));
+      log(`⚖️ Debate started: ${ev.operationType || "architectural"} change`);
+    });
+
+    es.addEventListener("debate:thinking", (e: MessageEvent) => {
+      const ev: WorkerEvent = JSON.parse(e.data);
+      setState(s => ({ ...s, workerEvents: [...s.workerEvents, ev] }));
+      log(`🤔 Debate ${ev.role} is thinking...`);
+    });
+
+    es.addEventListener("debate:argument", (e: MessageEvent) => {
+      const ev: WorkerEvent = JSON.parse(e.data);
+      setState(s => ({ ...s, workerEvents: [...s.workerEvents, ev] }));
+      log(`💬 Debate ${ev.role} presented argument`);
+    });
+
+    es.addEventListener("debate:verdict", (e: MessageEvent) => {
+      const ev: WorkerEvent = JSON.parse(e.data);
+      setState(s => ({ ...s, workerEvents: [...s.workerEvents, ev] }));
+      log(`⚖️ Debate concluded: ${ev.result?.verdict}`);
+    });
+
     es.addEventListener("superagent:progress", (e: MessageEvent) => {
       const ev: WorkerEvent = JSON.parse(e.data);
       log(`📋 ${ev.message || "Superagent progress"}`);
