@@ -1,6 +1,12 @@
 import type { Express } from "express";
 import { connectToGitHub } from "../src/lib/github";
 import { storage } from "./storage";
+import {
+  buildRequest, parseResponse, parseStreamChunk,
+  getFallbackModel, getAvailableModels, getModelPricing,
+  getDefaultModel, getProviderForModel, calcCost as _calcCost,
+  isProviderActive, type ProviderName,
+} from "./providers";
 
 interface Issue {
   id: string;
@@ -384,77 +390,10 @@ Rules:
 - Make minimum necessary changes`,
 };
 
-// ── DeepSeek direct API (primary) ──────────────────────────────────────────
-const DEEPSEEK_ENDPOINT = process.env.DEEPSEEK_ENDPOINT || "https://api.deepseek.com/v1/chat/completions";
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || "";
-const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-chat";
-const USE_DEEPSEEK = Boolean(DEEPSEEK_API_KEY);
-
-// ── Groq API (fast fallback) ───────────────────────────────────────────────
-const GROQ_ENDPOINT = process.env.GROQ_ENDPOINT || "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
-const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
-const USE_GROQ = Boolean(GROQ_API_KEY);
-
-// Default model: DeepSeek (best for coding) > Groq (fast fallback)
-const DEFAULT_MODEL = USE_DEEPSEEK ? DEEPSEEK_MODEL : (USE_GROQ ? GROQ_MODEL : DEEPSEEK_MODEL);
-
-// Smart fallback chain — tries next available provider
-function getFallbackModel(currentModel: string): string | null {
-  const chain: string[] = [];
-  if (USE_DEEPSEEK) chain.push(DEEPSEEK_MODEL);
-  if (USE_GROQ) chain.push(GROQ_MODEL);
-  const idx = chain.indexOf(currentModel);
-  return (idx >= 0 && idx < chain.length - 1) ? chain[idx + 1] : null;
-}
-
-// Model pricing per 1M tokens [input, output] in USD
-const MODEL_PRICING: Record<string, [number, number]> = {
-  "deepseek-chat": [0.14, 0.28],
-  "deepseek-reasoner": [0.55, 2.19],
-  "llama-3.3-70b-versatile": [0.59, 0.79],
-  "llama-3.1-8b-instant": [0.05, 0.08],
-  "mixtral-8x7b-32768": [0.24, 0.24],
-  "gemma2-9b-it": [0.20, 0.20],
-};
-
-// Which provider handles which model
-type ModelProvider = "deepseek" | "groq";
-
-function getModelProvider(model: string): ModelProvider {
-  if (model.toLowerCase().includes("deepseek")) return "deepseek";
-  // Everything else goes to Groq (Llama, Mixtral, Gemma, etc.)
-  return "groq";
-}
-
-function getModelEndpoint(model: string): { url: string; headers: Record<string, string> } {
-  const provider = getModelProvider(model);
-  switch (provider) {
-    case "deepseek":
-      return {
-        url: DEEPSEEK_ENDPOINT,
-        headers: { "Authorization": `Bearer ${DEEPSEEK_API_KEY}`, "Content-Type": "application/json" },
-      };
-    case "groq":
-    default:
-      return {
-        url: GROQ_ENDPOINT,
-        headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
-      };
-  }
-}
-
-// Available models (only list providers that are actually configured)
-function getAvailableModels(): string[] {
-  const models: string[] = [];
-  if (USE_DEEPSEEK) {
-    models.push("deepseek-chat", "deepseek-reasoner");
-  }
-  if (USE_GROQ) {
-    models.push("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it");
-  }
-  return models;
-}
+// ── Multi-provider AI gateway ──────────────────────────────────────────────
+// All provider logic is in server/providers.ts — supports DeepSeek, Groq,
+// Google Gemini, Cerebras, GitHub Models, and Cohere with auto-fallback.
+const DEFAULT_MODEL = getDefaultModel();
 
 interface AIUsage {
   content: string;
@@ -466,8 +405,7 @@ interface AIUsage {
 }
 
 function calcCost(model: string, promptTokens: number, completionTokens: number): number {
-  const pricing = MODEL_PRICING[model] || MODEL_PRICING[DEFAULT_MODEL] || [0.15, 0.60];
-  return (promptTokens / 1_000_000) * pricing[0] + (completionTokens / 1_000_000) * pricing[1];
+  return _calcCost(model, promptTokens, completionTokens);
 }
 
 export async function callAI(
@@ -476,27 +414,26 @@ export async function callAI(
   model?: string
 ): Promise<AIUsage> {
   const deployment = model || DEFAULT_MODEL;
-  const { url, headers } = getModelEndpoint(deployment);
+  const req = buildRequest(deployment, systemPrompt, userMessage, 4096, false);
+  const providerName = getProviderForModel(deployment);
 
-  // Both DeepSeek and Groq use OpenAI-compatible format
-  const bodyPayload: any = {
-    model: deployment,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userMessage },
-    ],
-    max_tokens: 4096,
-  };
+  if (!providerName) {
+    const fallback = getFallbackModel(deployment);
+    if (fallback) {
+      console.log(`[callAI] No provider for ${deployment}, falling back to ${fallback}`);
+      return callAI(systemPrompt, userMessage, fallback);
+    }
+    throw new Error(`No provider configured for model: ${deployment}`);
+  }
 
-  const response = await fetch(url, {
+  const response = await fetch(req.url, {
     method: "POST",
-    headers,
-    body: JSON.stringify(bodyPayload),
+    headers: req.headers,
+    body: JSON.stringify(req.body),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    // Try next model in the fallback chain
     const fallback = getFallbackModel(deployment);
     if (fallback) {
       console.log(`[callAI] ${deployment} failed (${response.status}), falling back to ${fallback}`);
@@ -508,12 +445,9 @@ export async function callAI(
   }
 
   const aiResponse = await response.json();
-  const content = aiResponse.choices?.[0]?.message?.content;
-  const promptTokens = aiResponse.usage?.prompt_tokens || 0;
-  const completionTokens = aiResponse.usage?.completion_tokens || 0;
-  const tokens = aiResponse.usage?.total_tokens || 0;
-  if (!content) {
-    // Fallback on empty response
+  const parsed = parseResponse(providerName, aiResponse);
+
+  if (!parsed.content) {
     const fallback = getFallbackModel(deployment);
     if (fallback) {
       console.log(`[callAI] ${deployment} returned empty, falling back to ${fallback}`);
@@ -521,7 +455,14 @@ export async function callAI(
     }
     throw new Error("No response from AI");
   }
-  return { content, tokens, promptTokens, completionTokens, model: deployment, costUsd: calcCost(deployment, promptTokens, completionTokens) };
+  return {
+    content: parsed.content,
+    tokens: parsed.totalTokens,
+    promptTokens: parsed.promptTokens,
+    completionTokens: parsed.completionTokens,
+    model: deployment,
+    costUsd: calcCost(deployment, parsed.promptTokens, parsed.completionTokens),
+  };
 }
 
 export async function callAIStream(
@@ -531,28 +472,25 @@ export async function callAIStream(
   model?: string
 ): Promise<AIUsage> {
   const deployment = model || DEFAULT_MODEL;
-  const { url, headers } = getModelEndpoint(deployment);
+  const req = buildRequest(deployment, systemPrompt, userMessage, 4096, true);
+  const providerName = getProviderForModel(deployment);
 
-  // Both DeepSeek and Groq use OpenAI-compatible streaming format
-  const bodyPayload: any = {
-    model: deployment,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userMessage },
-    ],
-    max_tokens: 4096,
-    stream: true,
-    stream_options: { include_usage: true },
-  };
+  if (!providerName) {
+    const fallback = getFallbackModel(deployment);
+    if (fallback) {
+      console.log(`[callAIStream] No provider for ${deployment}, falling back to ${fallback}`);
+      return callAIStream(systemPrompt, userMessage, onToken, fallback);
+    }
+    throw new Error(`No provider configured for model: ${deployment}`);
+  }
 
-  const response = await fetch(url, {
+  const response = await fetch(req.url, {
     method: "POST",
-    headers,
-    body: JSON.stringify(bodyPayload),
+    headers: req.headers,
+    body: JSON.stringify(req.body),
   });
 
   if (!response.ok) {
-    // Try next model in the fallback chain
     const fallback = getFallbackModel(deployment);
     if (fallback) {
       console.log(`[callAIStream] ${deployment} failed (${response.status}), falling back to ${fallback}`);
@@ -575,32 +513,38 @@ export async function callAIStream(
     if (done) break;
     const chunk = decoder.decode(value, { stream: true });
     for (const line of chunk.split("\n")) {
-      if (!line.startsWith("data: ")) continue;
-      const data = line.slice(6).trim();
-      if (data === "[DONE]") continue;
-      try {
-        const parsed = JSON.parse(data);
-        const token = parsed.choices?.[0]?.delta?.content;
-        if (token) {
-          fullContent += token;
-          onToken(token);
-        }
-        // Capture usage from the final chunk (stream_options: { include_usage: true })
-        if (parsed.usage?.total_tokens) {
-          tokens = parsed.usage.total_tokens;
-          promptTokens = parsed.usage.prompt_tokens || 0;
-          completionTokens = parsed.usage.completion_tokens || 0;
-        }
-      } catch { /* skip malformed */ }
+      const tokenText = parseStreamChunk(providerName, line);
+      if (tokenText) {
+        fullContent += tokenText;
+        onToken(tokenText);
+      }
+      // Try to capture usage from final chunks (OpenAI format)
+      if (line.startsWith("data: ")) {
+        try {
+          const d = JSON.parse(line.slice(6).trim());
+          if (d.usage?.total_tokens) {
+            tokens = d.usage.total_tokens;
+            promptTokens = d.usage.prompt_tokens || 0;
+            completionTokens = d.usage.completion_tokens || 0;
+          }
+        } catch { /* skip */ }
+      }
     }
   }
 
-  // Fallback: estimate tokens from content length (≈ 4 chars per token)
+  // Fallback: estimate tokens from content length
   if (tokens === 0 && fullContent.length > 0) {
     tokens = Math.round(fullContent.length / 4);
   }
 
-  return { content: fullContent, tokens, promptTokens, completionTokens, model: deployment, costUsd: calcCost(deployment, promptTokens, completionTokens) };
+  return {
+    content: fullContent,
+    tokens,
+    promptTokens,
+    completionTokens,
+    model: deployment,
+    costUsd: calcCost(deployment, promptTokens, completionTokens),
+  };
 }
 
 export function parseJsonResponse(content: string): any {
@@ -650,13 +594,21 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.get("/api/models", (_req, res) => {
-    const models = getAvailableModels();
-    const pricing: Record<string, { input: number; output: number }> = {};
-    for (const m of models) {
-      const p = MODEL_PRICING[m] || [0.15, 0.60];
-      pricing[m] = { input: p[0], output: p[1] };
-    }
-    res.json({ models, default: DEFAULT_MODEL, pricing });
+    const modelList = getAvailableModels();
+    const modelIds = modelList.map(m => m.id);
+    const pricing = getModelPricing();
+    res.json({
+      models: modelIds,
+      default: DEFAULT_MODEL,
+      pricing,
+      providers: modelList.map(m => ({
+        id: m.id,
+        label: m.label,
+        provider: m.provider,
+        isFree: m.isFree,
+        contextWindow: m.contextWindow,
+      })),
+    });
   });
 
   app.post("/api/ai-agent", async (req, res) => {
@@ -870,13 +822,112 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
+  // ── Public repo import (no token required) ───────────────────────────────
+  app.post("/api/github/import", async (req, res) => {
+    try {
+      const { repoUrl, token } = req.body;
+      if (!repoUrl) return res.status(400).json({ error: "Repository URL is required" });
+
+      // Parse the GitHub URL to extract owner/repo
+      let owner: string, repo: string;
+      const match = repoUrl.match(/github\.com[/:]([^/]+)\/([^/]+?)(?:\.git)?(?:$|[/?#])/i);
+      if (match) {
+        owner = match[1];
+        repo = match[2];
+      } else {
+        return res.status(400).json({ error: "Invalid GitHub URL. Use https://github.com/owner/repo" });
+      }
+
+      const headers: Record<string, string> = {
+        Accept: "application/vnd.github.v3+json",
+        "User-Agent": "Autonomous-Coder",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      // Get repo metadata (also verifies it exists and is accessible)
+      const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
+      if (!repoRes.ok) {
+        if (repoRes.status === 404) return res.status(404).json({ error: "Repository not found (it may be private — provide a token)" });
+        return res.status(repoRes.status).json({ error: "GitHub API error" });
+      }
+      const repoData = await repoRes.json();
+      const defaultBranch = repoData.default_branch || "main";
+      const fullName = `${owner}/${repo}`;
+
+      // Get the file tree
+      const treeRes = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`,
+        { headers }
+      );
+      if (!treeRes.ok) return res.status(404).json({ error: "Could not fetch file tree" });
+      const tree = await treeRes.json();
+
+      // Filter to code files, skip node_modules, .git, dist, build, etc.
+      const skipDirs = ["node_modules/", ".git/", "dist/", "build/", ".next/", "__pycache__/", ".venv/", "vendor/", "target/", ".cache/"];
+      const codeExts = [".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs", ".java", ".rb", ".php",
+        ".css", ".scss", ".html", ".json", ".yaml", ".yml", ".toml", ".md", ".sql",
+        ".sh", ".env.example", ".dockerfile", "Dockerfile", "Makefile", ".vue", ".svelte"];
+      const isCodeFile = (path: string) => {
+        if (skipDirs.some(d => path.startsWith(d) || path.includes("/" + d))) return false;
+        return codeExts.some(ext => path.endsWith(ext)) || path === "Dockerfile" || path === "Makefile";
+      };
+
+      const allFiles = (tree.tree || []).filter((f: any) => f.type === "blob" && isCodeFile(f.path));
+      // Sort by importance: package.json, README, config files first, then source
+      const priority = (p: string) => {
+        if (p === "package.json" || p === "Cargo.toml" || p === "go.mod" || p === "requirements.txt") return 0;
+        if (p.endsWith("README.md")) return 1;
+        if (p.includes(".config.") || p.endsWith("tsconfig.json") || p.endsWith("vite.config")) return 2;
+        if (p.startsWith("server/") || p.startsWith("src/")) return 3;
+        return 4;
+      };
+      allFiles.sort((a: any, b: any) => priority(a.path) - priority(b.path));
+
+      // Fetch content for up to 40 files (covers most repos for AI context)
+      const filesToFetch = allFiles.slice(0, 40);
+      const fileResults = await Promise.allSettled(
+        filesToFetch.map(async (f: any) => {
+          const contentRes = await fetch(
+            `https://api.github.com/repos/${owner}/${repo}/contents/${f.path}?ref=${defaultBranch}`,
+            { headers }
+          );
+          if (!contentRes.ok) return null;
+          const fileData = await contentRes.json();
+          // Skip files > 100KB (likely generated/binary)
+          if (fileData.size > 100000) return null;
+          const fileContent = Buffer.from(fileData.content, "base64").toString("utf-8");
+          return { path: f.path, content: fileContent, size: fileData.size };
+        })
+      );
+
+      const files = fileResults
+        .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled" && r.value !== null)
+        .map(r => r.value);
+
+      res.json({
+        fullName,
+        name: repo,
+        description: repoData.description,
+        language: repoData.language,
+        defaultBranch,
+        stars: repoData.stargazers_count,
+        totalFiles: allFiles.length,
+        loadedFiles: files.length,
+        files,
+      });
+    } catch (error) {
+      console.error("[import]", error);
+      res.status(500).json({ error: "Failed to import repository" });
+    }
+  });
+
   app.post("/api/github/clone", async (req, res) => {
+    // Redirect to the new import endpoint
     try {
       const { repoUrl } = req.body;
       if (!repoUrl) {
         return res.status(400).json({ error: "Repository URL is required" });
       }
-
       const result = await connectToGitHub(repoUrl);
       res.json({ result });
     } catch (error) {

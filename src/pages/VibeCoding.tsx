@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Sparkles, Activity, FileCode, Brain, Github, History, Clock, Link2, Check, Coins, RotateCcw, ChevronDown, DollarSign, Save } from "lucide-react";
+import { Sparkles, Activity, FileCode, Brain, Github, History, Clock, Link2, Check, Coins, RotateCcw, ChevronDown, DollarSign, Save, FolderGit2 } from "lucide-react";
 import Header from "@/components/Header";
 import VibeInput, { BuildMode, ProjectType } from "@/components/agents/VibeInput";
 import AgentPipeline from "@/components/agents/AgentPipeline";
@@ -8,6 +8,7 @@ import TaskList from "@/components/agents/TaskList";
 import CodeWorkspace from "@/components/agents/CodeWorkspace";
 import ChatIteration from "@/components/agents/ChatIteration";
 import GitHubConnect from "@/components/GitHubConnect";
+import RepoImport from "@/components/RepoImport";
 import { toast } from "sonner";
 import {
   AgentType, AgentMessage, AgentTask, GeneratedFile,
@@ -20,6 +21,7 @@ import {
 } from "@/lib/agents";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
 import { useSandbox } from "@/hooks/useSandbox";
 import SandboxPanel from "@/components/agents/SandboxPanel";
 
@@ -45,7 +47,7 @@ const VibeCoding = () => {
   const [tasks, setTasks] = useState<AgentTask[]>([]);
   const [currentTaskId, setCurrentTaskId] = useState<number | undefined>();
   const [generatedFiles, setGeneratedFiles] = useState<GeneratedFile[]>([]);
-  const [activeTab, setActiveTab] = useState<"build" | "github" | "history">("build");
+  const [activeTab, setActiveTab] = useState<"build" | "import" | "github" | "history">("build");
   const [sessionTokens, setSessionTokens] = useState(getSessionTokens);
   const [sessionCost, setSessionCost] = useState(getSessionCost);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -597,6 +599,7 @@ setIsRunning(false);
         <div className="flex gap-1 mb-6 max-w-3xl mx-auto bg-muted/30 rounded-xl p-1 border border-border/40">
           {[
             { id: "build", icon: Sparkles, label: "Vibe Build" },
+            { id: "import", icon: FolderGit2, label: "Import" },
             { id: "github", icon: Github, label: "GitHub" },
             { id: "history", icon: History, label: "History" },
           ].map(({ id, icon: Icon, label }) => (
@@ -688,6 +691,65 @@ setIsRunning(false);
               </div>
             </div>
           </>
+        )}
+
+        {/* ── Import Tab ── */}
+        {activeTab === "import" && (
+          <div className="max-w-2xl mx-auto space-y-4">
+            <RepoImport onFilesLoaded={handleGitHubFilesLoaded} />
+            {seedFilesRef.current.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="glass-card rounded-xl border border-primary/30 p-4 space-y-3"
+              >
+                <p className="text-sm font-medium text-foreground">
+                  {seedFilesRef.current.length} files loaded from {seedRepoRef.current}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  The AI agents now have the full codebase as context. Go to the Build tab and describe what you want them to do:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    "Finish all incomplete features and TODOs",
+                    "Fix all bugs and type errors",
+                    "Add tests for all existing functions",
+                    "Refactor for better performance",
+                    "Add dark mode support",
+                  ].map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      onClick={() => {
+                        setActiveTab("build");
+                        // Pre-fill the goal input by triggering the build with the suggestion
+                        const input = document.querySelector<HTMLInputElement>("[data-testid='input-goal']");
+                        if (input) {
+                          input.value = suggestion;
+                          input.dispatchEvent(new Event("input", { bubbles: true }));
+                        }
+                      }}
+                      className="text-[10px] sm:text-xs px-2.5 py-1.5 rounded-lg border border-border/40 bg-primary/5 text-foreground hover:bg-primary/10 hover:border-primary/30 transition-all"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+                <Button
+                  onClick={() => setActiveTab("build")}
+                  size="sm"
+                  className="w-full"
+                  data-testid="button-go-to-build"
+                >
+                  Go to Build →
+                </Button>
+              </motion.div>
+            )}
+            <div className="text-center">
+              <p className="text-[10px] sm:text-xs text-muted-foreground">
+                Import any public GitHub repo — no token needed. Private repos need a GitHub PAT.
+              </p>
+            </div>
+          </div>
         )}
 
         {/* ── GitHub Tab ── */}
