@@ -40,7 +40,7 @@ const AgentPipeline = ({ currentAgent, completedAgents, agentSequence }: AgentPi
               </motion.div>
             )}
           </div>
-          <span className={`font-medium text-center truncate ${compact ? "text-[8px] max-w-[40px]" : "text-[10px] sm:text-xs"} ${isActive ? config.color : "text-muted-foreground"}`}>
+          <span className={`font-medium text-center truncate ${compact ? "text-[10px] max-w-[48px]" : "text-[10px] sm:text-xs"} ${isActive ? config.color : "text-muted-foreground"}`}>
             {config.label}
           </span>
         </motion.div>

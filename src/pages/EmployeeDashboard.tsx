@@ -58,11 +58,11 @@ export default function EmployeeDashboard() {
         {/* Enqueue Task Card */}
         <section className="bg-zinc-900 rounded-xl border border-zinc-800 p-6">
           <h2 className="text-lg font-semibold mb-4">Assign a New Task</h2>
-          <form onSubmit={handleCreate} className="flex gap-4">
+          <form onSubmit={handleCreate} className="flex flex-col sm:flex-row gap-4">
             <input
               type="text"
               placeholder="E.g., Review the src/components folder for accessibility issues..."
-              className="flex-1 bg-zinc-950 border border-zinc-800 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 min-w-0 bg-zinc-950 border border-zinc-800 rounded-md px-4 py-2 sm:py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={newTaskGoal}
               onChange={(e) => setNewTaskGoal(e.target.value)}
               disabled={createTaskMutation.isPending}

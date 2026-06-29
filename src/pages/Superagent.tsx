@@ -160,7 +160,7 @@ export default function Superagent() {
               onChange={e => setGoal(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) runTask(); }}
               placeholder="Give me any task — build a SaaS app, research a topic, write a report, plan a product, debug code, design a system…"
-              className="w-full bg-transparent px-5 pt-5 pb-2 text-sm text-slate-200 placeholder-slate-600 resize-none outline-none min-h-[80px] max-h-[200px]"
+              className="w-full bg-transparent px-4 sm:px-5 pt-4 sm:pt-5 pb-2 text-sm sm:text-base text-slate-200 placeholder-slate-600 resize-none outline-none min-h-[60px] sm:min-h-[80px] max-h-[160px] sm:max-h-[200px]"
               disabled={isRunning}
             />
             <div className="flex items-center justify-between px-5 pb-4 pt-1">
@@ -227,7 +227,7 @@ export default function Superagent() {
         </AnimatePresence>
 
         {/* Main content — result + sandbox side by side when files present */}
-        <div className={`flex-1 grid gap-4 ${hasFiles ? "lg:grid-cols-2" : "grid-cols-1"}`}>
+        <div className={`flex-1 grid gap-4 ${hasFiles ? "md:grid-cols-2" : "grid-cols-1"}`}>
 
           {/* Result / output panel */}
           <div className="flex flex-col gap-4">

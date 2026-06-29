@@ -304,9 +304,9 @@ const Index = () => {
         </section>
 
         {/* Main Content Grid */}
-        <div className="grid lg:grid-cols-3 gap-6 sm:gap-8">
+        <div className="grid md:grid-cols-3 gap-6 sm:gap-8">
           {/* Code Input Section */}
-          <div className="lg:col-span-2 space-y-4 sm:space-y-6 order-2 lg:order-1">
+          <div className="md:col-span-2 space-y-4 sm:space-y-6 order-1">
             <div className="glass-card rounded-xl border border-border/50 p-4 sm:p-6">
               <div className="mb-4 sm:mb-6">
                 <h2 className="text-lg sm:text-xl font-semibold text-foreground mb-2">
@@ -383,8 +383,8 @@ const Index = () => {
             )}
           </div>
 
-          {/* Sidebar - Shows first on mobile */}
-          <div className="space-y-4 sm:space-y-6 order-1 lg:order-2">
+          {/* Sidebar */}
+          <div className="space-y-4 sm:space-y-6 md:order-2">
             <StatCard
               stats={[
                 { icon: CheckCircle, label: "Fixed", value: stats.fixed, color: "success" },

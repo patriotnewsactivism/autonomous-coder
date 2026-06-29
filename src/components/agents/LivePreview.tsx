@@ -288,7 +288,7 @@ export default function LivePreview({ files, isBuilding, buildLog = [], onError 
                     srcDoc={doc}
                     sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
                     className="w-full h-full rounded-lg border border-white/5 preview-fade-in"
-                    style={{ minHeight: "500px", background: "#0f172a" }}
+                    style={{ minHeight: "300px", background: "#0f172a" }}
                     title="Live Preview"
                     onLoad={() => setTimeout(() => setIsReady(true), 300)}
                   />

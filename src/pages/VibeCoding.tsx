@@ -531,7 +531,7 @@ setIsRunning(false);
                 <ChevronDown className="h-3 w-3" />
               </button>
               {showModelMenu && (
-                <div className="absolute top-full mt-1 left-0 z-50 min-w-[200px] bg-popover border border-border rounded-lg shadow-lg p-1">
+                <div className="absolute top-full mt-1 left-0 right-0 sm:left-0 sm:right-auto z-50 min-w-0 sm:min-w-[200px] bg-popover border border-border rounded-lg shadow-lg p-1">
                   {availableModels.map((m) => (
                     <button
                       key={m}
@@ -648,9 +648,9 @@ setIsRunning(false);
               }`} data-testid={`tab-${id}`}
             >
               <Icon className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{label}</span>
+              <span className="hidden xs:inline">{label}</span>
               {id === "history" && projectHistory.length > 0 && (
-                <span className="text-[9px] bg-primary/20 text-primary rounded-full px-1.5 py-0.5">
+                <span className="text-[11px] bg-primary/20 text-primary rounded-full px-1.5 py-0.5">
                   {projectHistory.length}
                 </span>
               )}
@@ -665,9 +665,9 @@ setIsRunning(false);
               <VibeInput onSubmit={(goal, mode, pt) => runAutonomousAgents(goal, mode, pt)} isRunning={isRunning} onStop={handleStop} />
             </section>
 
-            <div className="grid lg:grid-cols-3 gap-4 sm:gap-8">
-              {/* Left */}
-              <div className="space-y-4 sm:space-y-6 order-2 lg:order-1">
+            <div className="grid md:grid-cols-3 gap-4 sm:gap-8">
+              {/* Left - Tasks + Activity */}
+              <div className="space-y-4 sm:space-y-6 order-2 md:order-1">
                 <div className="glass-card rounded-xl border border-border/50 p-4 sm:p-6">
                   <div className="flex items-center gap-2 mb-3 sm:mb-4">
                     <Brain className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
@@ -691,8 +691,8 @@ setIsRunning(false);
                 </div>
               </div>
 
-              {/* Right */}
-              <div className="lg:col-span-2 order-1 lg:order-2 space-y-4 sm:space-y-6">
+              {/* Right - Generated Code + Chat */}
+              <div className="md:col-span-2 order-1 md:order-2 space-y-4 sm:space-y-6">
                 <div className="glass-card rounded-xl border border-border/50 p-4 sm:p-6">
                   <div className="flex items-center gap-2 mb-4 sm:mb-6">
                     <FileCode className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />

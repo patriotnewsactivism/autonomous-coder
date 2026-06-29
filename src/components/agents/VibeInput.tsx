@@ -154,7 +154,7 @@ const VibeInput = ({ onSubmit, isRunning, onStop }: VibeInputProps) => {
                 >
                   <div className="text-base sm:text-lg mb-1">{pt.icon}</div>
                   <p className="text-[10px] sm:text-xs font-medium text-foreground group-hover:text-emerald-400 transition-colors">{pt.label}</p>
-                  <p className="text-[8px] sm:text-[9px] text-muted-foreground mt-0.5 line-clamp-2">{pt.desc}</p>
+                  <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{pt.desc}</p>
                 </button>
               ))}
             </div>
@@ -271,7 +271,7 @@ const VibeInput = ({ onSubmit, isRunning, onStop }: VibeInputProps) => {
                 className="text-left p-2.5 sm:p-3 rounded-xl border border-border/40 hover:border-primary/40 hover:bg-primary/5 transition-all group">
                 <div className="text-base sm:text-lg mb-1">{t.icon}</div>
                 <p className="text-[10px] sm:text-xs font-medium text-foreground group-hover:text-primary transition-colors">{t.label}</p>
-                <p className="text-[9px] sm:text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{t.desc}</p>
+                <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{t.desc}</p>
               </button>
             ))}
           </motion.div>

@@ -298,7 +298,7 @@ const CodeWorkspace = ({ files, onFilesUpdated }: CodeWorkspaceProps) => {
                           className="text-[10px] text-primary hover:underline"
                         >Copy</button>
                       </div>
-                      <pre className="text-[9px] sm:text-[10px] font-mono text-foreground/70 bg-background/50 rounded p-2 overflow-x-auto max-h-32 border border-border/20">
+                      <pre className="text-[10px] sm:text-xs font-mono text-foreground/70 bg-background/50 rounded p-2 overflow-x-auto max-h-32 border border-border/20">
                         {cf.content}
                       </pre>
                     </div>
@@ -394,10 +394,10 @@ const CodeWorkspace = ({ files, onFilesUpdated }: CodeWorkspaceProps) => {
                       </span>
                       {onFilesUpdated && !isEditing && (
                         <button onClick={() => startEditing(file)}
-                          className="flex-shrink-0 p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                          className="flex-shrink-0 p-2 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
                           data-testid={`button-edit-${fileName}`} title="Edit file"
                         >
-                          <Pencil className="h-3 w-3" />
+                          <Pencil className="h-3.5 w-3.5" />
                         </button>
                       )}
                       {isEditing ? (
@@ -413,7 +413,7 @@ const CodeWorkspace = ({ files, onFilesUpdated }: CodeWorkspaceProps) => {
                           </button>
                         </div>
                       ) : (
-                        <button onClick={() => copyCode(file.path, file.content)} className="flex-shrink-0 p-1 rounded hover:bg-muted transition-colors"
+                        <button onClick={() => copyCode(file.path, file.content)} className="flex-shrink-0 p-2 rounded hover:bg-muted transition-colors"
                           data-testid={`button-copy-${fileName}`}
                         >
                           {copiedFile === file.path
@@ -441,7 +441,7 @@ const CodeWorkspace = ({ files, onFilesUpdated }: CodeWorkspaceProps) => {
                                   value={editContent}
                                   onChange={(e) => setEditContent(e.target.value)}
                                   className="w-full bg-background border border-border/50 rounded-lg p-3 text-[10px] sm:text-xs font-mono text-foreground/90 resize-none outline-none focus:border-primary/50 transition-colors"
-                                  style={{ height: "300px" }}
+                                  style={{ height: "250px" }}
                                   spellCheck={false}
                                   data-testid={`editor-${fileName}`}
                                 />
