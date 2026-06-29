@@ -39,3 +39,23 @@ export const insertProjectSchema = createInsertSchema(coderProjects).omit({
 
 export type InsertProject = z.infer<typeof insertProjectSchema>;
 export type Project = typeof coderProjects.$inferSelect;
+
+export const employeeTasks = pgTable("employee_tasks", {
+  id: serial("id").primaryKey(),
+  source: text("source").notNull(), // e.g. "github", "slack", "cron"
+  sourceId: text("source_id"), // e.g. "issue_123"
+  goal: text("goal").notNull(),
+  status: text("status").notNull().default("pending"), // "pending", "running", "completed", "failed"
+  result: jsonb("result"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertEmployeeTaskSchema = createInsertSchema(employeeTasks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertEmployeeTask = z.infer<typeof insertEmployeeTaskSchema>;
+export type EmployeeTask = typeof employeeTasks.$inferSelect;

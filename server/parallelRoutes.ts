@@ -99,6 +99,38 @@ export function registerParallelRoutes(app: Express) {
     }
   });
 
+  // ── POST: AI Employee Webhook ─────────────────────────────────────────────
+  app.post("/api/employee/tasks", async (req, res) => {
+    try {
+      const { source, sourceId, goal } = req.body;
+      if (!source || !goal) return res.status(400).json({ error: "source and goal required" });
+      
+      const { storage } = await import("./storage");
+      const task = await storage.createEmployeeTask({
+        source,
+        sourceId,
+        goal,
+        status: "pending",
+      });
+      
+      res.status(201).json(task);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to create task" });
+    }
+  });
+
+  // ── GET: List Employee Tasks ──────────────────────────────────────────────
+  app.get("/api/employee/tasks", async (req, res) => {
+    try {
+      const { storage } = await import("./storage");
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const tasks = await storage.getAllEmployeeTasks(limit);
+      res.json(tasks);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to fetch tasks" });
+    }
+  });
+
   // ── GET: Classify a task without executing it ─────────────────────────────
   app.get("/api/superagent/classify", async (req, res) => {
     try {

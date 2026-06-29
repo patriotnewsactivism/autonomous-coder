@@ -12,9 +12,19 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Autonomous Coder" />
     <meta name="twitter:description" content="Deploy AI coding agents that plan, build, test, and ship code autonomously." />
+    <link rel="manifest" href="/manifest.json" />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(error => {
+            console.error('ServiceWorker registration failed: ', error);
+          });
+        });
+      }
+    </script>
   </body>
 </html>

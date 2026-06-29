@@ -1,4 +1,4 @@
-import { InsertAnalysisHistory, AnalysisHistory, InsertProject, Project } from "@shared/schema";
+import { InsertAnalysisHistory, AnalysisHistory, InsertProject, Project, InsertEmployeeTask, EmployeeTask } from "@shared/schema";
 
 export interface IStorage {
   createAnalysisHistory(data: InsertAnalysisHistory): Promise<AnalysisHistory>;
@@ -7,6 +7,10 @@ export interface IStorage {
   getRecentProjects(limit: number): Promise<Project[]>;
   getProject(id: number): Promise<Project | undefined>;
   updateProject(id: number, data: Partial<InsertProject>): Promise<Project | undefined>;
+  createEmployeeTask(data: InsertEmployeeTask): Promise<EmployeeTask>;
+  getPendingEmployeeTasks(limit?: number): Promise<EmployeeTask[]>;
+  getAllEmployeeTasks(limit?: number): Promise<EmployeeTask[]>;
+  updateEmployeeTask(id: number, data: Partial<InsertEmployeeTask>): Promise<EmployeeTask | undefined>;
 }
 
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
@@ -94,6 +98,41 @@ export class SupabaseStorage implements IStorage {
     return rows[0] ? this.mapProject(rows[0]) : undefined;
   }
 
+  async createEmployeeTask(data: InsertEmployeeTask): Promise<EmployeeTask> {
+    const rows = await supaFetch("/employee_tasks", {
+      method: "POST",
+      body: JSON.stringify({
+        source: data.source,
+        source_id: data.sourceId,
+        goal: data.goal,
+        status: data.status || "pending",
+      }),
+    });
+    return this.mapEmployeeTask(rows[0]);
+  }
+
+  async getPendingEmployeeTasks(limit: number = 10): Promise<EmployeeTask[]> {
+    const rows = await supaFetch(`/employee_tasks?status=eq.pending&order=created_at.asc&limit=${limit}`);
+    return rows.map((r: any) => this.mapEmployeeTask(r));
+  }
+
+  async getAllEmployeeTasks(limit: number = 50): Promise<EmployeeTask[]> {
+    const rows = await supaFetch(`/employee_tasks?order=created_at.desc&limit=${limit}`);
+    return rows.map((r: any) => this.mapEmployeeTask(r));
+  }
+
+  async updateEmployeeTask(id: number, data: Partial<InsertEmployeeTask>): Promise<EmployeeTask | undefined> {
+    const update: Record<string, any> = { updated_at: new Date().toISOString() };
+    if (data.status !== undefined) update.status = data.status;
+    if (data.result !== undefined) update.result = typeof data.result === "string" ? JSON.parse(data.result) : data.result;
+    
+    const rows = await supaFetch(`/employee_tasks?id=eq.${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(update),
+    });
+    return rows[0] ? this.mapEmployeeTask(rows[0]) : undefined;
+  }
+
   private mapAnalysis(r: any): AnalysisHistory {
     return { id: r.id, code: r.code, language: r.language, summary: r.summary, issueCount: r.issue_count, createdAt: new Date(r.created_at) };
   }
@@ -106,6 +145,19 @@ export class SupabaseStorage implements IStorage {
       agentSequence: typeof r.agent_sequence === "string" ? r.agent_sequence : JSON.stringify(r.agent_sequence || []),
       fileCount: r.file_count || (Array.isArray(r.files) ? r.files.length : 0),
       createdAt: new Date(r.created_at || r.updated_at),
+    };
+  }
+
+  private mapEmployeeTask(r: any): EmployeeTask {
+    return {
+      id: r.id,
+      source: r.source,
+      sourceId: r.source_id,
+      goal: r.goal,
+      status: r.status,
+      result: typeof r.result === "string" ? r.result : JSON.stringify(r.result || null),
+      createdAt: new Date(r.created_at || r.updated_at),
+      updatedAt: new Date(r.updated_at || r.created_at),
     };
   }
 }
@@ -141,6 +193,45 @@ export class MemStorage implements IStorage {
     if (!existing) return undefined;
     const updated = { ...existing, ...data, createdAt: existing.createdAt };
     this.projectsMap.set(id, updated);
+    return updated;
+  }
+
+  private employeeTasksMap: Map<number, EmployeeTask> = new Map();
+  private employeeTaskId = 1;
+
+  async createEmployeeTask(data: InsertEmployeeTask): Promise<EmployeeTask> {
+    const id = this.employeeTaskId++;
+    const task: EmployeeTask = { 
+      id, 
+      sourceId: data.sourceId || null, 
+      result: null, 
+      ...data, 
+      status: data.status || "pending", 
+      createdAt: new Date(), 
+      updatedAt: new Date() 
+    };
+    this.employeeTasksMap.set(id, task);
+    return task;
+  }
+  
+  async getPendingEmployeeTasks(limit: number = 10): Promise<EmployeeTask[]> {
+    return Array.from(this.employeeTasksMap.values())
+      .filter(t => t.status === "pending")
+      .sort((a, b) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0))
+      .slice(0, limit);
+  }
+
+  async getAllEmployeeTasks(limit: number = 50): Promise<EmployeeTask[]> {
+    return Array.from(this.employeeTasksMap.values())
+      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0))
+      .slice(0, limit);
+  }
+  
+  async updateEmployeeTask(id: number, data: Partial<InsertEmployeeTask>): Promise<EmployeeTask | undefined> {
+    const existing = this.employeeTasksMap.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...data, updatedAt: new Date() } as EmployeeTask;
+    this.employeeTasksMap.set(id, updated);
     return updated;
   }
 }

@@ -116,6 +116,12 @@ app.get("/api/health", (_req, res) => {
     log(`Server running on port ${PORT}`);
   });
 
+  // ── Start background workers ───────────────────────────────────────────────────
+  const { startEmployeeWorker } = await import("./employeeWorker.js");
+  const { setupCronJobs } = await import("./cronJobs.js");
+  startEmployeeWorker(10000); // Poll every 10 seconds
+  setupCronJobs();
+
   if (app.get("env") === "development") {
     const { setupVite } = await import("./vite");
     await setupVite(app, server);

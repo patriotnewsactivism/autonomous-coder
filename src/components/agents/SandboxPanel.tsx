@@ -304,9 +304,9 @@ export default function SandboxPanel({
     <div className={`flex flex-col bg-[#080d18] rounded-2xl border border-white/8 overflow-hidden shadow-2xl ${fullscreen ? "fixed inset-4 z-50" : ""} ${className}`}>
 
       {/* ── Top bar ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-white/8 bg-[#0b1120] flex-shrink-0">
+      <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 px-3 py-2 border-b border-white/8 bg-[#0b1120] flex-shrink-0">
         {/* Tab bar */}
-        <div className="flex items-center gap-0.5 flex-1">
+        <div className="flex items-center gap-0.5 flex-1 overflow-x-auto pb-1 sm:pb-0">
           {tabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${tab === t.id ? "bg-cyan-500/15 text-cyan-400 shadow-sm" : "text-slate-500 hover:text-slate-300 hover:bg-white/5"}`}>
@@ -403,16 +403,16 @@ export default function SandboxPanel({
           {/* CODE TAB */}
           {tab === "code" && (
             <motion.div key="code" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="flex h-full">
+              className="flex flex-col sm:flex-row h-full">
               {/* File tree sidebar */}
-              <div className="w-44 flex-shrink-0 border-r border-white/8 overflow-y-auto py-2">
+              <div className="w-full sm:w-44 h-1/3 sm:h-full flex-shrink-0 border-b sm:border-b-0 sm:border-r border-white/8 overflow-y-auto py-2">
                 {files.length === 0
                   ? <p className="px-3 py-4 text-[10px] text-slate-600">No files yet</p>
                   : <FileTree files={files} selected={selectedFile} onSelect={setSelectedFile} newPaths={newPaths} />
                 }
               </div>
               {/* Code viewer */}
-              <div className="flex-1 overflow-auto relative">
+              <div className="flex-1 overflow-auto relative h-2/3 sm:h-full">
                 {activeFile ? (
                   <>
                     <div className="sticky top-0 z-10 flex items-center gap-2 px-3 py-1.5 border-b border-white/8 bg-[#080d18]/90 backdrop-blur-sm">
