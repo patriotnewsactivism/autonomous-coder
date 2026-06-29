@@ -8,8 +8,6 @@ import {
   getProvidersStatus, getFreeUnconfiguredProviders,
 } from "./providers";
 
-console.log("[routes] module evaluating, DEEPSEEK_API_KEY present:", Boolean(process.env.DEEPSEEK_API_KEY));
-
 interface Issue {
   id: string;
   severity: "error" | "warning" | "info";

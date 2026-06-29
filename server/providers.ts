@@ -14,18 +14,34 @@ export type ProviderName = "deepseek" | "groq" | "gemini" | "cerebras" | "github
 interface ProviderConfig {
   name: ProviderName;
   label: string;
-  apiKey: string;
-  endpoint: string;
+  apiKeyEnv: string[]; // env var names to check, tried in order
+  endpoint: string | (() => string); // string or lazy function for env-dependent endpoints
   models: { id: string; label: string; contextWindow: number; pricing: [number, number] }[];
   isFree: boolean;
+}
+
+/** Get a provider's API key by checking configured env vars at call time — reads process.env lazily so env loaders work regardless of ESM evaluation order. */
+function getApiKey(name: ProviderName): string {
+  const envs = PROVIDERS[name].apiKeyEnv;
+  for (const env of envs) {
+    const val = process.env[env];
+    if (val) return val;
+  }
+  return "";
+}
+
+function getEndpoint(name: ProviderName): string {
+  const ep = PROVIDERS[name].endpoint;
+  if (typeof ep === "function") return ep();
+  return ep;
 }
 
 const PROVIDERS: Record<ProviderName, ProviderConfig> = {
   deepseek: {
     name: "deepseek",
     label: "DeepSeek",
-    apiKey: process.env.DEEPSEEK_API_KEY || "",
-    endpoint: process.env.DEEPSEEK_ENDPOINT || "https://api.deepseek.com/v1/chat/completions",
+    apiKeyEnv: ["DEEPSEEK_API_KEY"],
+    endpoint: () => process.env.DEEPSEEK_ENDPOINT || "https://api.deepseek.com/v1/chat/completions",
     models: [
       { id: "deepseek-chat", label: "DeepSeek Chat", contextWindow: 64000, pricing: [0.14, 0.28] },
       { id: "deepseek-reasoner", label: "DeepSeek Reasoner", contextWindow: 64000, pricing: [0.55, 2.19] },
@@ -35,8 +51,8 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
   groq: {
     name: "groq",
     label: "Groq (Free)",
-    apiKey: process.env.GROQ_API_KEY || "",
-    endpoint: process.env.GROQ_ENDPOINT || "https://api.groq.com/openai/v1/chat/completions",
+    apiKeyEnv: ["GROQ_API_KEY"],
+    endpoint: () => process.env.GROQ_ENDPOINT || "https://api.groq.com/openai/v1/chat/completions",
     models: [
       { id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B", contextWindow: 128000, pricing: [0.59, 0.79] },
       { id: "llama-3.1-8b-instant", label: "Llama 3.1 8B Instant", contextWindow: 128000, pricing: [0.05, 0.08] },
@@ -48,7 +64,7 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
   gemini: {
     name: "gemini",
     label: "Google Gemini (Free Tier)",
-    apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || "",
+    apiKeyEnv: ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
     endpoint: "https://generativelanguage.googleapis.com/v1beta",
     models: [
       { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash", contextWindow: 1000000, pricing: [0, 0] },
@@ -62,8 +78,8 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
   cerebras: {
     name: "cerebras",
     label: "Cerebras (Free)",
-    apiKey: process.env.CEREBRAS_API_KEY || "",
-    endpoint: process.env.CEREBRAS_ENDPOINT || "https://api.cerebras.ai/v1/chat/completions",
+    apiKeyEnv: ["CEREBRAS_API_KEY"],
+    endpoint: () => process.env.CEREBRAS_ENDPOINT || "https://api.cerebras.ai/v1/chat/completions",
     models: [
       { id: "llama-3.3-70b", label: "Llama 3.3 70B (Cerebras)", contextWindow: 128000, pricing: [0, 0] },
       { id: "llama3.1-8b-8192", label: "Llama 3.1 8B (Cerebras)", contextWindow: 8192, pricing: [0, 0] },
@@ -73,7 +89,7 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
   github: {
     name: "github",
     label: "GitHub Models (Free)",
-    apiKey: process.env.GITHUB_TOKEN || process.env.GITHUB_MODELS_TOKEN || "",
+    apiKeyEnv: ["GITHUB_TOKEN", "GITHUB_MODELS_TOKEN"],
     endpoint: "https://models.inference.ai.azure.com/chat/completions",
     models: [
       { id: "gpt-4o", label: "GPT-4o (GitHub)", contextWindow: 128000, pricing: [0, 0] },
@@ -86,7 +102,7 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
   cohere: {
     name: "cohere",
     label: "Cohere (Free Trial)",
-    apiKey: process.env.COHERE_API_KEY || "",
+    apiKeyEnv: ["COHERE_API_KEY"],
     endpoint: "https://api.cohere.ai/v1/chat",
     models: [
       { id: "command-r-plus", label: "Command R+ (Cohere)", contextWindow: 128000, pricing: [0, 0] },
@@ -99,7 +115,7 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 export function isProviderActive(name: ProviderName): boolean {
-  return Boolean(PROVIDERS[name].apiKey);
+  return Boolean(getApiKey(name));
 }
 
 export function getActiveProviders(): ProviderName[] {
@@ -226,9 +242,9 @@ export function calcCost(model: string, promptTokens: number, completionTokens: 
 
 function buildOpenAIRequest(provider: ProviderConfig, model: string, systemPrompt: string, userMessage: string, maxTokens: number, stream: boolean) {
   return {
-    url: provider.endpoint,
+    url: getEndpoint(provider.name),
     headers: {
-      Authorization: `Bearer ${provider.apiKey}`,
+      Authorization: `Bearer ${getApiKey(provider.name)}`,
       "Content-Type": "application/json",
       ...(stream ? {} : {}),
     },
@@ -246,12 +262,12 @@ function buildOpenAIRequest(provider: ProviderConfig, model: string, systemPromp
 
 function buildGeminiRequest(provider: ProviderConfig, model: string, systemPrompt: string, userMessage: string, maxTokens: number, stream: boolean) {
   const action = stream ? "streamGenerateContent" : "generateContent";
-  const url = `${provider.endpoint}/models/${model}:${action}${stream ? "?alt=sse" : ""}`;
+  const url = `${getEndpoint(provider.name)}/models/${model}:${action}${stream ? "?alt=sse" : ""}`;
   return {
     url,
     headers: {
       "Content-Type": "application/json",
-      "x-goog-api-key": provider.apiKey,
+      "x-goog-api-key": getApiKey(provider.name),
     },
     body: {
       systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
@@ -263,9 +279,9 @@ function buildGeminiRequest(provider: ProviderConfig, model: string, systemPromp
 
 function buildCohereRequest(provider: ProviderConfig, model: string, systemPrompt: string, userMessage: string, maxTokens: number, stream: boolean) {
   return {
-    url: provider.endpoint,
+    url: getEndpoint(provider.name),
     headers: {
-      Authorization: `Bearer ${provider.apiKey}`,
+      Authorization: `Bearer ${getApiKey(provider.name)}`,
       "Content-Type": "application/json",
     },
     body: {
