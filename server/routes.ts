@@ -38,7 +38,8 @@ const systemPromptAnalyze = `You are an expert code analyzer and fixer. Analyze 
 }
 IMPORTANT: Return ONLY valid JSON, no markdown.`;
 
-export { systemPrompts } from "./agentPrompts";
+import { systemPrompts } from "./agentPrompts";
+export { systemPrompts };
 // ── Multi-provider AI gateway ──────────────────────────────────────────────
 // All provider logic is in server/providers.ts — supports DeepSeek, Groq,
 // Google Gemini, Cerebras, GitHub Models, and Cohere with auto-fallback.
