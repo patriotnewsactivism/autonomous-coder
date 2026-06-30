@@ -75,6 +75,11 @@ app.use((req, _res, next) => {
   next();
 });
 
+// ── Health check ──────────────────────────────────────────────────────────────
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString(), env: process.env.NODE_ENV });
+});
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 await registerRoutes(app);
 registerParallelRoutes(app);

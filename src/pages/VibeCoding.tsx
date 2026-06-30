@@ -250,6 +250,14 @@ const VibeCoding = () => {
     }
   }, []);
 
+  const { data: searchStatus } = useQuery<{ tavily: boolean; ddg: boolean } | null>({
+    queryKey: ["/api/search/status"],
+    queryFn: () => fetch(`${API_BASE}/api/search/status`).then(r => r.ok ? r.json() : null).catch(() => null),
+    refetchOnWindowFocus: false,
+    refetchInterval: 60000,
+    initialData: null,
+  });
+
   const { data: projectHistory = [] } = useQuery<ProjectHistory[]>({
     queryKey: ["/api/projects/recent"],
     queryFn: () => fetch(`${API_BASE}/api/projects/recent?limit=30`).then(r => r.json()),

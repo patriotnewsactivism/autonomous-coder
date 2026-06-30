@@ -84,7 +84,8 @@
     "tsx": "^4.21.0",
     "vaul": "^0.9.9",
     "zod": "^3.25.76",
-    "cross-env": "^10.1.0"
+    "cross-env": "^10.1.0",
+    "@monaco-editor/react": "^4.6.0"
   },
   "devDependencies": {
     "@emnapi/core": "^1.11.1",
