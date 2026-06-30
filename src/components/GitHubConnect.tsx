@@ -77,7 +77,7 @@ const GitHubConnect = ({ onFilesLoaded }: GitHubConnectProps) => {
         body.username = username.trim();
       }
 
-      const res = await fetch(`${API_BASE}/api/github/repos", {
+      const res = await fetch(`${API_BASE}/api/github/repos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -105,7 +105,7 @@ const GitHubConnect = ({ onFilesLoaded }: GitHubConnectProps) => {
     setRepoFiles([]);
     setView("repo-detail");
     try {
-      const res = await fetch(`${API_BASE}/api/github/repo-files", {
+      const res = await fetch(`${API_BASE}/api/github/repo-files`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: savedToken, fullName: repo.fullName, branch: repo.defaultBranch }),
@@ -128,7 +128,7 @@ const GitHubConnect = ({ onFilesLoaded }: GitHubConnectProps) => {
       const filesToFetch = repoFiles.slice(0, 10);
       const fileContents = await Promise.allSettled(
         filesToFetch.map(async (f) => {
-          const res = await fetch(`${API_BASE}/api/github/file-content", {
+          const res = await fetch(`${API_BASE}/api/github/file-content`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ token: savedToken, fullName: selectedRepo.fullName, filePath: f.path, branch: selectedRepo.defaultBranch }),
@@ -162,7 +162,7 @@ const GitHubConnect = ({ onFilesLoaded }: GitHubConnectProps) => {
     setLoading(true);
     setPrReview(null);
     try {
-      const res = await fetch(`${API_BASE}/api/github/analyze-pr", {
+      const res = await fetch(`${API_BASE}/api/github/analyze-pr`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: savedToken, fullName: selectedRepo.fullName, prNumber: parseInt(prNumber) }),
