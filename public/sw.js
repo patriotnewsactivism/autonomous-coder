@@ -31,7 +31,15 @@ self.addEventListener('fetch', (event) => {
         });
       })
       .catch(() => {
-        return caches.match(event.request);
+        return caches.match(event.request).then((cachedResponse) => {
+          if (cachedResponse) return cachedResponse;
+          // Fallback if network fails and not in cache
+          return new Response("Offline. Please check your connection.", {
+            status: 503,
+            statusText: "Service Unavailable",
+            headers: new Headers({ "Content-Type": "text/plain" }),
+          });
+        });
       })
   );
 });
