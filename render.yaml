@@ -11,6 +11,8 @@ services:
         value: production
       - key: DEEPSEEK_API_KEY
         sync: false
+      - key: KILOCODE_API_KEY
+        sync: false
       - key: DEEPSEEK_MODEL
         value: deepseek-chat
       - key: GROQ_API_KEY

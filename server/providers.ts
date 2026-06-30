@@ -1,26 +1,26 @@
 /**
- * Multi-provider AI gateway — supports DeepSeek, Groq, Google Gemini,
- * Cerebras, GitHub Models, and Cohere. All use OpenAI-compatible APIs
- * except Gemini (which has its own format) and Cohere.
+ * Multi-provider AI gateway — supports DeepSeek, Kilo Gateway, Groq, Google Gemini,
+ * Cerebras, GitHub Models, and Cohere.
  *
- * Every provider has a free tier. The gateway auto-cascades on failure
- * following the pattern: DeepSeek → Groq → Gemini → Cerebras → GitHub → Cohere
+ * Cascade order: Gemini → DeepSeek → Kilo → Groq → Cerebras → GitHub → Cohere
+ *
+ * Kilo Gateway (api.kilo.ai) is OpenAI-compatible and routes to 100+ models:
+ *   claude-sonnet-4, gpt-5.5, gemini-3.1-pro-preview, kilo/auto, and more.
  */
 
 // ── Provider configs ────────────────────────────────────────────────────────
 
-export type ProviderName = "deepseek" | "groq" | "gemini" | "cerebras" | "github" | "cohere";
+export type ProviderName = "deepseek" | "kilo" | "groq" | "gemini" | "cerebras" | "github" | "cohere";
 
 interface ProviderConfig {
   name: ProviderName;
   label: string;
-  apiKeyEnv: string[]; // env var names to check, tried in order
-  endpoint: string | (() => string); // string or lazy function for env-dependent endpoints
+  apiKeyEnv: string[];
+  endpoint: string | (() => string);
   models: { id: string; label: string; contextWindow: number; pricing: [number, number] }[];
   isFree: boolean;
 }
 
-/** Get a provider's API key by checking configured env vars at call time — reads process.env lazily so env loaders work regardless of ESM evaluation order. */
 function getApiKey(name: ProviderName): string {
   const envs = PROVIDERS[name].apiKeyEnv;
   for (const env of envs) {
@@ -43,11 +43,34 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
     apiKeyEnv: ["DEEPSEEK_API_KEY"],
     endpoint: () => process.env.DEEPSEEK_ENDPOINT || "https://api.deepseek.com/v1/chat/completions",
     models: [
-      { id: "deepseek-chat", label: "DeepSeek Chat", contextWindow: 64000, pricing: [0.14, 0.28] },
-      { id: "deepseek-reasoner", label: "DeepSeek Reasoner", contextWindow: 64000, pricing: [0.55, 2.19] },
+      { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash", contextWindow: 1000000, pricing: [0.14, 0.28] },
+      { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro", contextWindow: 1000000, pricing: [0.435, 0.87] },
+      // Legacy aliases kept for backward compat (deprecated 2026-07-24)
+      { id: "deepseek-chat", label: "DeepSeek Chat (legacy)", contextWindow: 64000, pricing: [0.14, 0.28] },
+      { id: "deepseek-reasoner", label: "DeepSeek Reasoner (legacy)", contextWindow: 64000, pricing: [0.55, 2.19] },
     ],
     isFree: false,
   },
+
+  kilo: {
+    name: "kilo",
+    label: "Kilo Gateway",
+    apiKeyEnv: ["KILOCODE_API_KEY", "KILO_API_KEY"],
+    endpoint: "https://api.kilo.ai/api/gateway/chat/completions",
+    models: [
+      // Smart router — Kilo picks the best model automatically
+      { id: "kilo/auto", label: "Kilo Auto (Smart Route)", contextWindow: 1000000, pricing: [0, 0] },
+      // Premium models via Kilo
+      { id: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4 (via Kilo)", contextWindow: 200000, pricing: [3.0, 15.0] },
+      { id: "anthropic/claude-opus-4", label: "Claude Opus 4 (via Kilo)", contextWindow: 200000, pricing: [15.0, 75.0] },
+      { id: "openai/gpt-5.5", label: "GPT-5.5 (via Kilo)", contextWindow: 256000, pricing: [2.5, 10.0] },
+      { id: "openai/gpt-4.1", label: "GPT-4.1 (via Kilo)", contextWindow: 1000000, pricing: [2.0, 8.0] },
+      { id: "google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (via Kilo)", contextWindow: 1000000, pricing: [0, 0] },
+      { id: "deepseek/deepseek-v4-pro", label: "DeepSeek V4 Pro (via Kilo)", contextWindow: 1000000, pricing: [0.435, 0.87] },
+    ],
+    isFree: false,
+  },
+
   groq: {
     name: "groq",
     label: "Groq (Free)",
@@ -61,6 +84,7 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
     ],
     isFree: true,
   },
+
   gemini: {
     name: "gemini",
     label: "Google Gemini (Free Tier)",
@@ -70,11 +94,10 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
       { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash", contextWindow: 1000000, pricing: [0, 0] },
       { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash", contextWindow: 1000000, pricing: [0, 0] },
       { id: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash-Lite", contextWindow: 1000000, pricing: [0, 0] },
-      { id: "gemini-3-flash-preview", label: "Gemini 3 Flash Preview", contextWindow: 1000000, pricing: [0, 0] },
-      { id: "gemini-3.5-flash", label: "Gemini 3.5 Flash", contextWindow: 1000000, pricing: [0, 0] },
     ],
     isFree: true,
   },
+
   cerebras: {
     name: "cerebras",
     label: "Cerebras (Free)",
@@ -86,6 +109,7 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
     ],
     isFree: true,
   },
+
   github: {
     name: "github",
     label: "GitHub Models (Free)",
@@ -99,6 +123,7 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
     ],
     isFree: true,
   },
+
   cohere: {
     name: "cohere",
     label: "Cohere (Free Trial)",
@@ -122,7 +147,6 @@ export function getActiveProviders(): ProviderName[] {
   return (Object.keys(PROVIDERS) as ProviderName[]).filter((n) => isProviderActive(n));
 }
 
-/** Model → provider lookup */
 function findProviderForModel(modelId: string): ProviderConfig | null {
   for (const p of Object.values(PROVIDERS)) {
     if (p.models.some((m) => m.id === modelId)) return p;
@@ -130,13 +154,11 @@ function findProviderForModel(modelId: string): ProviderConfig | null {
   return null;
 }
 
-/** Get the fallback chain — models from active providers, ordered by preference */
 export function getFallbackChain(): string[] {
   const chain: string[] = [];
-  const order: ProviderName[] = ["gemini", "deepseek", "groq", "cerebras", "github", "cohere"];
+  const order: ProviderName[] = ["gemini", "deepseek", "kilo", "groq", "cerebras", "github", "cohere"];
   for (const name of order) {
     if (!isProviderActive(name)) continue;
-    // Add the first (primary) model from each provider
     const primary = PROVIDERS[name].models[0];
     if (primary) chain.push(primary.id);
   }
@@ -147,12 +169,10 @@ export function getFallbackModel(currentModel: string): string | null {
   const chain = getFallbackChain();
   const idx = chain.indexOf(currentModel);
   if (idx >= 0 && idx < chain.length - 1) return chain[idx + 1];
-  // If model not in chain, try the first available
   if (chain.length > 0 && chain[0] !== currentModel) return chain[0];
   return null;
 }
 
-/** All available models from active providers */
 export function getAvailableModels(): { id: string; label: string; provider: string; isFree: boolean; contextWindow: number }[] {
   const models: { id: string; label: string; provider: string; isFree: boolean; contextWindow: number }[] = [];
   for (const p of Object.values(PROVIDERS)) {
@@ -164,7 +184,6 @@ export function getAvailableModels(): { id: string; label: string; provider: str
   return models;
 }
 
-/** Pricing lookup */
 export function getModelPricing(): Record<string, { input: number; output: number; isFree: boolean }> {
   const pricing: Record<string, { input: number; output: number; isFree: boolean }> = {};
   for (const p of Object.values(PROVIDERS)) {
@@ -176,13 +195,11 @@ export function getModelPricing(): Record<string, { input: number; output: numbe
   return pricing;
 }
 
-/** Default model — first available from the preferred order. Returns null when no providers are configured. */
 export function getDefaultModel(): string | null {
   const chain = getFallbackChain();
   return chain[0] || null;
 }
 
-/** Return all providers with their status, api key env var, and signup URL for diagnostics */
 export interface ProviderStatus {
   name: ProviderName;
   label: string;
@@ -195,6 +212,7 @@ export interface ProviderStatus {
 
 const PROVIDER_SIGNUP_URLS: Record<ProviderName, string> = {
   deepseek: "https://platform.deepseek.com/api_keys",
+  kilo: "https://app.kilo.ai",
   groq: "https://console.groq.com/keys",
   gemini: "https://aistudio.google.com/apikey",
   cerebras: "https://cloud.cerebras.ai",
@@ -204,6 +222,7 @@ const PROVIDER_SIGNUP_URLS: Record<ProviderName, string> = {
 
 const PROVIDER_ENV_VARS: Record<ProviderName, string> = {
   deepseek: "DEEPSEEK_API_KEY",
+  kilo: "KILOCODE_API_KEY",
   groq: "GROQ_API_KEY",
   gemini: "GEMINI_API_KEY (or GOOGLE_API_KEY)",
   cerebras: "CEREBRAS_API_KEY",
@@ -238,15 +257,26 @@ export function calcCost(model: string, promptTokens: number, completionTokens: 
   return (promptTokens / 1_000_000) * pricing[0] + (completionTokens / 1_000_000) * pricing[1];
 }
 
-// ── Request builders per provider ────────────────────────────────────────────
+export function getProviderForModel(modelId: string): ProviderName | null {
+  const p = findProviderForModel(modelId);
+  return p ? p.name : null;
+}
 
-function buildOpenAIRequest(provider: ProviderConfig, model: string, systemPrompt: string, userMessage: string, maxTokens: number, stream: boolean) {
+// ── Request builders ─────────────────────────────────────────────────────────
+
+function buildOpenAIRequest(
+  provider: ProviderConfig,
+  model: string,
+  systemPrompt: string,
+  userMessage: string,
+  maxTokens: number,
+  stream: boolean
+) {
   return {
     url: getEndpoint(provider.name),
     headers: {
       Authorization: `Bearer ${getApiKey(provider.name)}`,
       "Content-Type": "application/json",
-      ...(stream ? {} : {}),
     },
     body: {
       model,
@@ -260,24 +290,35 @@ function buildOpenAIRequest(provider: ProviderConfig, model: string, systemPromp
   };
 }
 
-function buildGeminiRequest(provider: ProviderConfig, model: string, systemPrompt: string, userMessage: string, maxTokens: number, stream: boolean) {
-  const action = stream ? "streamGenerateContent" : "generateContent";
-  const url = `${getEndpoint(provider.name)}/models/${model}:${action}${stream ? "?alt=sse" : ""}`;
+function buildGeminiRequest(
+  provider: ProviderConfig,
+  model: string,
+  systemPrompt: string,
+  userMessage: string,
+  maxTokens: number,
+  stream: boolean
+) {
+  const apiKey = getApiKey(provider.name);
+  const action = stream ? "streamGenerateContent?alt=sse" : "generateContent";
   return {
-    url,
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": getApiKey(provider.name),
-    },
+    url: `${getEndpoint(provider.name)}/models/${model}:${action}&key=${apiKey}`,
+    headers: { "Content-Type": "application/json" },
     body: {
-      systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
+      system_instruction: { parts: [{ text: systemPrompt }] },
       contents: [{ role: "user", parts: [{ text: userMessage }] }],
-      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7 },
+      generationConfig: { maxOutputTokens: maxTokens },
     },
   };
 }
 
-function buildCohereRequest(provider: ProviderConfig, model: string, systemPrompt: string, userMessage: string, maxTokens: number, stream: boolean) {
+function buildCohereRequest(
+  provider: ProviderConfig,
+  model: string,
+  systemPrompt: string,
+  userMessage: string,
+  maxTokens: number,
+  stream: boolean
+) {
   return {
     url: getEndpoint(provider.name),
     headers: {
@@ -294,73 +335,82 @@ function buildCohereRequest(provider: ProviderConfig, model: string, systemPromp
   };
 }
 
-/** Build the request for a specific model, auto-detecting provider format */
-export function buildRequest(model: string, systemPrompt: string, userMessage: string, maxTokens = 4096, stream = false) {
-  const provider = findProviderForModel(model);
-  if (!provider) throw new Error(`No provider configured for model: ${model}`);
+export function buildRequest(
+  modelId: string,
+  systemPrompt: string,
+  userMessage: string,
+  maxTokens: number,
+  stream: boolean
+) {
+  const provider = findProviderForModel(modelId);
+  if (!provider) throw new Error(`Unknown model: ${modelId}`);
 
-  switch (provider.name) {
-    case "gemini":
-      return buildGeminiRequest(provider, model, systemPrompt, userMessage, maxTokens, stream);
-    case "cohere":
-      return buildCohereRequest(provider, model, systemPrompt, userMessage, maxTokens, stream);
-    default:
-      return buildOpenAIRequest(provider, model, systemPrompt, userMessage, maxTokens, stream);
+  if (provider.name === "gemini") {
+    return buildGeminiRequest(provider, modelId, systemPrompt, userMessage, maxTokens, stream);
   }
+  if (provider.name === "cohere") {
+    return buildCohereRequest(provider, modelId, systemPrompt, userMessage, maxTokens, stream);
+  }
+  // OpenAI-compatible: deepseek, kilo, groq, cerebras, github
+  return buildOpenAIRequest(provider, modelId, systemPrompt, userMessage, maxTokens, stream);
 }
 
-// ── Response parsers per provider ────────────────────────────────────────────
+// ── Response parsers ─────────────────────────────────────────────────────────
 
-export function parseResponse(providerName: ProviderName, data: any): { content: string; promptTokens: number; completionTokens: number; totalTokens: number } {
-  switch (providerName) {
-    case "gemini":
-      return {
-        content: data.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("") || "",
-        promptTokens: data.usageMetadata?.promptTokenCount || 0,
-        completionTokens: data.usageMetadata?.candidatesTokenCount || 0,
-        totalTokens: data.usageMetadata?.totalTokenCount || 0,
-      };
-    case "cohere":
-      return {
-        content: data.text || data.message || "",
-        promptTokens: data.meta?.billed_units?.input_tokens || 0,
-        completionTokens: data.meta?.billed_units?.output_tokens || 0,
-        totalTokens: (data.meta?.billed_units?.input_tokens || 0) + (data.meta?.billed_units?.output_tokens || 0),
-      };
-    default:
-      // OpenAI-compatible format (deepseek, groq, cerebras, github)
-      return {
-        content: data.choices?.[0]?.message?.content || "",
-        promptTokens: data.usage?.prompt_tokens || 0,
-        completionTokens: data.usage?.completion_tokens || 0,
-        totalTokens: data.usage?.total_tokens || 0,
-      };
+export function parseResponse(
+  providerName: ProviderName,
+  data: any
+): { content: string; totalTokens: number; promptTokens: number; completionTokens: number } {
+  if (providerName === "gemini") {
+    const candidate = data.candidates?.[0];
+    const content = candidate?.content?.parts?.map((p: any) => p.text || "").join("") || "";
+    const usage = data.usageMetadata || {};
+    return {
+      content,
+      totalTokens: usage.totalTokenCount || 0,
+      promptTokens: usage.promptTokenCount || 0,
+      completionTokens: usage.candidatesTokenCount || 0,
+    };
   }
+  if (providerName === "cohere") {
+    return {
+      content: data.text || "",
+      totalTokens: data.meta?.tokens?.input_tokens + data.meta?.tokens?.output_tokens || 0,
+      promptTokens: data.meta?.tokens?.input_tokens || 0,
+      completionTokens: data.meta?.tokens?.output_tokens || 0,
+    };
+  }
+  // OpenAI-compatible (deepseek, kilo, groq, cerebras, github)
+  const content = data.choices?.[0]?.message?.content || "";
+  const usage = data.usage || {};
+  return {
+    content,
+    totalTokens: usage.total_tokens || 0,
+    promptTokens: usage.prompt_tokens || 0,
+    completionTokens: usage.completion_tokens || 0,
+  };
 }
 
-/** Parse a streaming line from a provider */
 export function parseStreamChunk(providerName: ProviderName, line: string): string | null {
-  if (!line.startsWith("data: ")) return null;
-  const data = line.slice(6).trim();
-  if (data === "[DONE]") return null;
-
-  try {
-    const json = JSON.parse(data);
-    switch (providerName) {
-      case "gemini":
-        return json.candidates?.[0]?.content?.parts?.[0]?.text || null;
-      case "cohere":
-        return json.text || json.delta?.message || null;
-      default:
-        return json.choices?.[0]?.delta?.content || null;
-    }
-  } catch {
-    return null;
+  if (providerName === "gemini") {
+    if (!line.startsWith("data: ")) return null;
+    try {
+      const data = JSON.parse(line.slice(6));
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+    } catch { return null; }
   }
-}
-
-/** Get the provider name for a model */
-export function getProviderForModel(model: string): ProviderName | null {
-  const p = findProviderForModel(model);
-  return p?.name || null;
+  if (providerName === "cohere") {
+    try {
+      const data = JSON.parse(line);
+      return data.event_type === "text-generation" ? data.text : null;
+    } catch { return null; }
+  }
+  // OpenAI-compatible (deepseek, kilo, groq, cerebras, github)
+  if (!line.startsWith("data: ")) return null;
+  const payload = line.slice(6).trim();
+  if (payload === "[DONE]") return null;
+  try {
+    const data = JSON.parse(payload);
+    return data.choices?.[0]?.delta?.content || null;
+  } catch { return null; }
 }

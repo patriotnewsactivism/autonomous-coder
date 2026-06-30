@@ -6,6 +6,40 @@ import { EventEmitter } from "events";
 import { getSmartContext } from "./autoLearn";
 import { buildResearchQueries, multiSearch, isTavilyEnabled } from "./webSearch";
 
+// ── Smart model routing — pick the best available model per agent role ────────
+function getModelForAgent(agentType: string, requestedModel?: string): string | undefined {
+  if (requestedModel) return requestedModel; // caller override wins
+
+  const env = process.env;
+
+  // Role → preferred model, in priority order
+  // Heavy reasoning roles: use DeepSeek V4 Pro or Kilo auto if available
+  const heavyRoles = ["orchestrator", "reviewer", "security", "performance"];
+  // Speed roles: use DeepSeek V4 Flash or Gemini 2.5
+  const speedRoles = ["strategist", "builder", "fixer", "database", "api", "ui", "testing", "refiner"];
+
+  const hasDeepSeek = !!(env.DEEPSEEK_API_KEY);
+  const hasKilo = !!(env.KILOCODE_API_KEY || env.KILO_API_KEY);
+  const hasGemini = !!(env.GEMINI_API_KEY || env.GOOGLE_API_KEY);
+
+  if (heavyRoles.includes(agentType)) {
+    if (hasKilo) return "kilo/auto";           // Kilo smart-routes to best available
+    if (hasDeepSeek) return "deepseek-v4-pro"; // DeepSeek V4 Pro for reasoning
+    if (hasGemini) return "gemini-2.5-flash";
+    return undefined; // let callAI pick default
+  }
+
+  if (speedRoles.includes(agentType)) {
+    if (hasDeepSeek) return "deepseek-v4-flash"; // Fast + cheap
+    if (hasKilo) return "kilo/auto";
+    if (hasGemini) return "gemini-2.0-flash";
+    return undefined;
+  }
+
+  return undefined;
+}
+
+
 export const workerBus = new EventEmitter();
 workerBus.setMaxListeners(200);
 
@@ -107,7 +141,8 @@ export async function runWorkerJob(job: WorkerJob): Promise<WorkerResult> {
         jobId: job.id, agent: job.agent, sessionId: job.sessionId, attempt: attempts
       });
 
-      const { content } = await callAI(prompt, userMsg, job.model);
+      const resolvedModel = getModelForAgent(job.agent, job.model);
+      const { content } = await callAI(prompt, userMsg, resolvedModel);
       const parsed = parseJsonResponse(content);
       lastOutput = parsed;
 
