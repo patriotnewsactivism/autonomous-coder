@@ -5,6 +5,8 @@ import { Loader2, Plus, Bot, Clock, CheckCircle2, XCircle, ArrowRight, PlayCircl
 import { EmployeeTask } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 
+const API_BASE = (import.meta as any).env?.VITE_API_URL || "";
+
 export default function EmployeeDashboard() {
   const queryClient = useQueryClient();
   const [newTaskGoal, setNewTaskGoal] = useState("");
@@ -12,7 +14,7 @@ export default function EmployeeDashboard() {
   const { data: tasks, isLoading } = useQuery<EmployeeTask[]>({
     queryKey: ["employeeTasks"],
     queryFn: async () => {
-      const res = await fetch("/api/employee/tasks");
+      const res = await fetch(`${API_BASE}/api/employee/tasks`);
       if (!res.ok) throw new Error("Failed to fetch tasks");
       return res.json();
     },
@@ -21,7 +23,7 @@ export default function EmployeeDashboard() {
 
   const createTaskMutation = useMutation({
     mutationFn: async (goal: string) => {
-      const res = await fetch("/api/employee/tasks", {
+      const res = await fetch(`${API_BASE}/api/employee/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source: "dashboard", sourceId: "manual", goal }),

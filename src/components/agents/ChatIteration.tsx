@@ -7,6 +7,7 @@ import AgentAvatar from "./AgentAvatar";
 import { motion, AnimatePresence } from "framer-motion";
 import { addSessionTokens } from "@/lib/agents";
 
+const API_BASE = (import.meta as any).env?.VITE_API_URL || "";
 const MEMORY_KEY = "acw_chat_history";
 const MAX_MEMORY = 6; // Remember last 6 messages for context
 
@@ -111,7 +112,7 @@ const ChatIteration = ({ files, onFilesUpdated, isAgentRunning }: ChatIterationP
     }));
 
     try {
-      const response = await fetch("/api/ai-agent/stream", {
+      const response = await fetch(`${API_BASE}/api/ai-agent/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

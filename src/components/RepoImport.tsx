@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { GeneratedFile } from "@/lib/agents";
 
+const API_BASE = (import.meta as any).env?.VITE_API_URL || "";
+
 interface ImportResult {
   fullName: string;
   name: string;
@@ -34,7 +36,7 @@ const RepoImport = ({ onFilesLoaded }: RepoImportProps) => {
     setLoading(true);
     setResult(null);
     try {
-      const res = await fetch("/api/github/import", {
+      const res = await fetch(`${API_BASE}/api/github/import`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
