@@ -8,10 +8,10 @@
  *              future builds avoid the same mistakes automatically
  */
 
-import { callAI, parseJsonResponse } from "./routes.js";
-import { storeMemory, retrieveMemory } from "./agentMemory.js";
-import { webSearch, formatSearchResults } from "./webSearch.js";
-import { runWorkerJob, workerBus, WorkerJob } from "./agentWorker.js";
+import { callAI, parseJsonResponse } from "./aiCore";
+import { storeMemory, retrieveMemory } from "./agentMemory";
+import { webSearch, formatSearchResults } from "./webSearch";
+import { runWorkerJob, workerBus, WorkerJob } from "./agentWorker";
 import { randomUUID } from "crypto";
 
 export interface HealContext {

@@ -11,8 +11,8 @@
  * - "meta"      : Which agents perform best for which categories of task
  */
 
-import { callAI, parseJsonResponse } from "./routes.js";
-import { storeMemory, retrieveMemory } from "./agentMemory.js";
+import { callAI, parseJsonResponse } from "./aiCore";
+import { storeMemory, retrieveMemory } from "./agentMemory";
 
 export interface BuildSummary {
   sessionId: string;

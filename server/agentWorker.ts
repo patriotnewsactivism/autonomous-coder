@@ -1,9 +1,10 @@
 
-import { callAI, systemPrompts, parseJsonResponse } from "./routes";
+import { callAI, parseJsonResponse } from "./aiCore";
+import { systemPrompts } from "./agentPrompts";
 import { storeMemory, retrieveMemory } from "./agentMemory";
 import { EventEmitter } from "events";
-import { getSmartContext } from "./autoLearn.js";
-import { buildResearchQueries, multiSearch, isTavilyEnabled } from "./webSearch.js";
+import { getSmartContext } from "./autoLearn";
+import { buildResearchQueries, multiSearch, isTavilyEnabled } from "./webSearch";
 
 export const workerBus = new EventEmitter();
 workerBus.setMaxListeners(200);

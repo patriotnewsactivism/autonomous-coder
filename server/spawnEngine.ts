@@ -9,9 +9,9 @@
  * "build a full SaaS platform with auth, payments, and CI/CD".
  */
 
-import { callAI, parseJsonResponse } from "./routes.js";
-import { runParallelWorkers, spawnSubWorkers, workerBus, WorkerJob } from "./agentWorker.js";
-import { getSmartContext } from "./autoLearn.js";
+import { callAI, parseJsonResponse } from "./aiCore";
+import { runParallelWorkers, spawnSubWorkers, workerBus, WorkerJob } from "./agentWorker";
+import { getSmartContext } from "./autoLearn";
 import { randomUUID } from "crypto";
 
 export interface SpawnPlan {
