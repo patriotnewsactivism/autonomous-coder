@@ -31,7 +31,7 @@ const CodeEditor = ({ value, onChange, placeholder = "Paste your code here..." }
         <span className="text-xs sm:text-sm font-medium text-foreground">Your Code</span>
       </div>
       
-      <div className="flex max-h-[250px] sm:max-h-[400px] overflow-auto">
+      <div className="flex overflow-auto">
         {/* Line numbers - hidden on very small screens */}
         <div className="hidden xs:flex flex-col items-end border-r border-border/30 bg-muted/30 px-2 sm:px-3 py-3 sm:py-4 select-none">
           {lineNumbers.map((num) => (

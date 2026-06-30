@@ -1,17 +1,19 @@
 import { useState } from "react";
-import { Sparkles, Zap, Wand2, Menu, X } from "lucide-react";
+import { Sparkles, Zap, Wand2, Menu, X, Bot } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 
 const Header = () => {
   const location = useLocation();
+  const isAnalyzePage = location.pathname === "/";
   const isVibePage = location.pathname === "/vibe";
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const isSuperagentPage = location.pathname === "/superagent";
 
   const navLinks = [
-    { to: "/", label: "Analyze Code", icon: Wand2, active: !isVibePage },
+    { to: "/", label: "Analyze Code", icon: Wand2, active: isAnalyzePage },
     { to: "/vibe", label: "Vibe Code", icon: Sparkles, active: isVibePage },
+    { to: "/superagent", label: "Superagent", icon: Bot, active: isSuperagentPage },
   ];
 
   return (
@@ -34,7 +36,7 @@ const Header = () => {
             <Link
               key={link.to}
               to={link.to}
-              data-testid={`link-nav-${link.to === "/" ? "analyze" : "vibe"}`}
+              data-testid={`link-nav-${link.to === "/" ? "analyze" : link.to === "/vibe" ? "vibe" : "superagent"}`}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 link.active
                   ? "bg-primary/10 text-primary border border-primary/30"
@@ -80,7 +82,7 @@ const Header = () => {
                   key={link.to}
                   to={link.to}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  data-testid={`link-mobile-${link.to === "/" ? "analyze" : "vibe"}`}
+                  data-testid={`link-mobile-${link.to === "/" ? "analyze" : link.to === "/vibe" ? "vibe" : "superagent"}`}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
                     link.active
                       ? "bg-primary/10 text-primary border border-primary/30"

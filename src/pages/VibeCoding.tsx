@@ -3,7 +3,8 @@ import {
   Sparkles, Activity, Brain, Github, History, Clock,
   Coins, RotateCcw, ChevronDown, DollarSign, Save,
   FolderGit2, AlertTriangle, Rocket, GitBranch, CheckCircle2,
-  XCircle, Upload, RefreshCw, Eye, Terminal, Zap, Play
+  XCircle, Upload, RefreshCw, Eye, Terminal, Zap, Play,
+  Info, ChevronUp, Minimize2, Maximize2
 } from "lucide-react";
 import Header from "@/components/Header";
 import VibeInput, { BuildMode, ProjectType } from "@/components/agents/VibeInput";
@@ -16,6 +17,9 @@ import ChatIteration from "@/components/agents/ChatIteration";
 import GitHubConnect from "@/components/GitHubConnect";
 import RepoImport from "@/components/RepoImport";
 import SandboxPanel from "@/components/agents/SandboxPanel";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   AgentType, AgentMessage, AgentTask, GeneratedFile,
@@ -198,6 +202,9 @@ const VibeCoding = () => {
   const [projectType, setProjectType] = useState<ProjectType | null>(null);
   const [rightTab, setRightTab] = useState<"preview" | "code" | "logs">("preview");
   const [bottomTab, setBottomTab] = useState<"activity" | "tasks" | "deploy" | "history" | "import" | "github">("activity");
+  const [showStatusBar, setShowStatusBar] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showPipeline, setShowPipeline] = useState(true);
   const stopRef = useRef(false);
   const seedFilesRef = useRef<GeneratedFile[]>([]);
   const seedRepoRef = useRef<string>("");
@@ -637,6 +644,7 @@ const VibeCoding = () => {
     seedRepoRef.current = repoName;
     toast.success(`Imported ${files.length} files from ${repoName}`);
     setBottomTab("activity");
+    setShowImportDialog(false);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -644,12 +652,13 @@ const VibeCoding = () => {
     <div className="min-h-screen bg-background">
       <Header />
 
-      <main className="pt-16 h-screen flex flex-col overflow-hidden">
+      <main className="pt-16 min-h-screen flex flex-col overflow-hidden">
         {/* Top bar: input + controls */}
-        <div className="flex-shrink-0 border-b border-border/40 bg-background/95 backdrop-blur px-4 py-3">
-          <div className="flex items-center gap-3 max-w-none">
-            {/* Model selector */}
-            <div className="relative flex-shrink-0">
+        <div className="flex-shrink-0 border-b border-border/40 bg-background/95 backdrop-blur px-3 md:px-4 py-2 md:py-3">
+          {/* Row 1: Model Selector + Import Repo + CompactInput + Status toggle */}
+          <div className="flex items-center gap-2 md:gap-3 max-w-none">
+            {/* Model selector — hidden on mobile */}
+            <div className="relative flex-shrink-0 hidden md:block">
               <button
                 onClick={() => setShowModelMenu(!showModelMenu)}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground hover:bg-muted/60"
@@ -670,13 +679,56 @@ const VibeCoding = () => {
               )}
             </div>
 
+            {/* Import Repo button */}
+            <button
+              onClick={() => setShowImportDialog(true)}
+              className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-colors text-xs font-medium"
+            >
+              <FolderGit2 className="h-3.5 w-3.5" />
+              <span className="hidden md:inline">Import Repo</span>
+            </button>
+
             {/* Main input */}
             <div className="flex-1 min-w-0">
               <CompactInput onSubmit={runAutonomousAgents} isRunning={isRunning} onStop={handleStop} />
             </div>
 
-            {/* Status badges */}
-            <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Status bar toggle */}
+            <button
+              onClick={() => setShowStatusBar(!showStatusBar)}
+              className="flex-shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+              title={showStatusBar ? "Hide session stats" : "Show session stats"}
+            >
+              {showStatusBar ? <ChevronUp className="h-3.5 w-3.5" /> : <Info className="h-3.5 w-3.5" />}
+            </button>
+          </div>
+
+          {/* Row 2 (collapsible): Mobile model selector + Status badges */}
+          {showStatusBar && (
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+              {/* Mobile model selector */}
+              <div className="relative flex-shrink-0 md:hidden">
+                <button
+                  onClick={() => setShowModelMenu(!showModelMenu)}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-muted/40 border border-border/40 text-[10px] text-muted-foreground hover:bg-muted/60"
+                >
+                  <Brain className="h-3 w-3 text-purple-400" />
+                  <span className="max-w-[80px] truncate">{selectedModel || "Model"}</span>
+                  <ChevronDown className="h-2.5 w-2.5" />
+                </button>
+                {showModelMenu && (
+                  <div className="absolute top-full mt-1 left-0 z-50 min-w-[160px] bg-popover border border-border rounded-lg shadow-xl p-1">
+                    {availableModels.map(m => (
+                      <button key={m} onClick={() => { setSelectedModel(m); setSelectedModelState(m); setShowModelMenu(false); }}
+                        className={`w-full text-left px-2.5 py-1 rounded-md text-[11px] ${m === selectedModel ? "bg-primary/10 text-primary" : "hover:bg-muted text-foreground"}`}>
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Cost + tokens */}
               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-lg border border-border/30">
                 <DollarSign className="h-3 w-3 text-emerald-400" />
                 <span className="font-mono">{formatCost(sessionCost)}</span>
@@ -687,6 +739,7 @@ const VibeCoding = () => {
                   <RotateCcw className="h-2.5 w-2.5 ml-1 opacity-50 hover:opacity-100" />
                 </button>
               </div>
+
               {/* Live Search Status */}
               {searchStatus && (
                 <div className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border ${
@@ -697,17 +750,31 @@ const VibeCoding = () => {
                   <span>{searchStatus.tavily ? "🔍 Live Search" : "🔍 DDG"}</span>
                 </div>
               )}
+
               {autoSaved && (
                 <span className="flex items-center gap-1 text-[11px] text-emerald-400">
                   <Save className="h-3 w-3" /> Saved
                 </span>
               )}
             </div>
-          </div>
+          )}
 
-          {/* Agent pipeline strip */}
-          <div className="mt-2 overflow-x-auto">
-            <AgentPipeline currentAgent={currentAgent} completedAgents={completedAgents} agentSequence={agentSequence} />
+          {/* Agent pipeline strip — collapsible */}
+          <div className="mt-1 overflow-x-auto">
+            <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                {showPipeline && (
+                  <AgentPipeline currentAgent={currentAgent} completedAgents={completedAgents} agentSequence={agentSequence} />
+                )}
+              </div>
+              <button
+                onClick={() => setShowPipeline(!showPipeline)}
+                className="flex-shrink-0 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors lg:hidden"
+                title={showPipeline ? "Collapse pipeline" : "Show pipeline"}
+              >
+                {showPipeline ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -719,11 +786,11 @@ const VibeCoding = () => {
           </div>
         )}
 
-        {/* ── Main workspace: split pane ── */}
-        <div className="flex-1 flex overflow-hidden min-h-0">
+        {/* ── Main workspace: responsive split pane ── */}
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
 
           {/* LEFT: Preview / Code / Logs */}
-          <div className="flex-1 flex flex-col min-w-0 border-r border-border/40">
+          <div className="flex-1 flex flex-col min-w-0 border-b lg:border-b-0 lg:border-r border-border/40 min-h-0">
             {/* Right pane tab bar */}
             <div className="flex-shrink-0 flex items-center gap-0.5 px-3 py-2 border-b border-border/40 bg-muted/20">
               {[
@@ -747,7 +814,7 @@ const VibeCoding = () => {
               </div>
             </div>
 
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden min-h-0">
               {rightTab === "preview" && (
                 <SandboxPanel
                   files={generatedFiles}
@@ -781,22 +848,23 @@ const VibeCoding = () => {
             </div>
           </div>
 
-          {/* RIGHT: Activity / Tasks / Deploy / History / Import */}
-          <div className="w-80 flex-shrink-0 flex flex-col min-h-0">
+          {/* RIGHT: Activity / Tasks / Deploy / History / Import — responsive sidebar */}
+          <div className="w-full lg:w-80 flex-shrink-0 flex flex-col max-h-[50vh] lg:max-h-none min-h-0">
             {/* Bottom pane tab bar */}
-            <div className="flex-shrink-0 flex flex-wrap items-center gap-0.5 px-2 py-2 border-b border-border/40 bg-muted/20">
+            <div className="flex-shrink-0 flex items-center gap-0.5 px-2 py-2 border-b border-border/40 bg-muted/20 overflow-x-auto">
               {[
-                { id: "activity", icon: Activity, label: "Activity" },
-                { id: "tasks", icon: Brain, label: "Tasks" },
-                { id: "deploy", icon: Rocket, label: "Deploy" },
-                { id: "history", icon: History, label: "History" },
-                { id: "import", icon: FolderGit2, label: "Import" },
-                { id: "github", icon: Github, label: "GitHub" },
-              ].map(({ id, icon: Icon, label }) => (
+                { id: "activity", icon: Activity, label: "Activity", hint: "Agent logs" },
+                { id: "tasks", icon: Brain, label: "Tasks", hint: "Build tasks" },
+                { id: "deploy", icon: Rocket, label: "Deploy", hint: "Push to GitHub" },
+                { id: "history", icon: History, label: "History", hint: "Past projects" },
+                { id: "import", icon: FolderGit2, label: "Import", hint: "Clone any repo" },
+                { id: "github", icon: Github, label: "GitHub", hint: "Connect account" },
+              ].map(({ id, icon: Icon, label, hint }) => (
                 <button key={id} onClick={() => setBottomTab(id as any)}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${bottomTab === id ? "bg-background text-foreground shadow-sm border border-border/50" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"}`}>
-                  <Icon className="h-3 w-3" />
-                  {label}
+                  title={hint}
+                  className={`flex items-center gap-1 px-2 py-1.5 rounded-md text-[11px] font-medium transition-colors whitespace-nowrap ${bottomTab === id ? "bg-background text-foreground shadow-sm border border-border/50" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"}`}>
+                  <Icon className="h-3 w-3 flex-shrink-0" />
+                  <span className="hidden sm:inline">{label}</span>
                   {id === "history" && projectHistory.length > 0 && (
                     <span className="bg-primary/20 text-primary rounded-full px-1 text-[9px]">{projectHistory.length}</span>
                   )}
@@ -855,6 +923,19 @@ const VibeCoding = () => {
           </div>
         </div>
       </main>
+
+      {/* Import Repo Dialog */}
+      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderGit2 className="h-5 w-5" />
+              Import Repository
+            </DialogTitle>
+          </DialogHeader>
+          <RepoImport onFilesLoaded={handleImportFiles} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

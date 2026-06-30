@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Wand2, Code, Sparkles, CheckCircle, Clock, XCircle, AlertTriangle, Zap, Target, Shield } from "lucide-react";
+import { Wand2, Code, Sparkles, CheckCircle, Clock, XCircle, AlertTriangle, Zap, Target, Shield, FolderGit2 } from "lucide-react";
 import Header from "@/components/Header";
 import FeatureCard from "@/components/FeatureCard";
 import StatCard from "@/components/StatCard";
@@ -7,12 +7,13 @@ import RecentActivity from "@/components/RecentActivity";
 import CodeEditor from "@/components/CodeEditor";
 import GitHubConnect from "@/components/GitHubConnect";
 import AnalysisResult from "@/components/AnalysisResult";
+import RepoImport from "@/components/RepoImport";
 import { GeneratedFile, fetchProviderStatus, type ProviderStatusResult } from "@/lib/agents";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { analyzeCode, detectLanguage } from "@/lib/api";
 
-type TabType = "manual" | "github";
+type TabType = "manual" | "github" | "import";
 
 interface Issue {
   id: string;
@@ -340,6 +341,16 @@ const Index = () => {
                   <Sparkles className="h-3 w-3 sm:h-4 sm:w-4" />
                   <span className="hidden xs:inline">GitHub</span> Repo
                 </button>
+                <button
+                  onClick={() => setActiveTab("import")}
+                  data-testid="button-tab-import"
+                  className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
+                    activeTab === "import" ? "tab-active" : "tab-inactive"
+                  }`}
+                >
+                  <FolderGit2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden xs:inline">Import</span> Repo
+                </button>
               </div>
 
               {/* Tab Content */}
@@ -365,6 +376,8 @@ const Index = () => {
                     )}
                   </Button>
                 </div>
+              ) : activeTab === "import" ? (
+                <RepoImport onFilesLoaded={handleGitHubFilesLoaded} />
               ) : (
                 <GitHubConnect onFilesLoaded={handleGitHubFilesLoaded} />
               )}
@@ -384,7 +397,7 @@ const Index = () => {
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-4 sm:space-y-6 md:order-2">
+          <div className="space-y-4 sm:space-y-6 md:order-2 sticky top-24">
             <StatCard
               stats={[
                 { icon: CheckCircle, label: "Fixed", value: stats.fixed, color: "success" },
