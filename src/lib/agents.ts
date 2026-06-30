@@ -395,7 +395,7 @@ export async function runBuilder(
   const context = {
     orchestratorResult: orchResult,
     strategyResult: stratResult,
-    seedFiles: seedFiles.map(f => ({ path: f.path, preview: f.content.slice(0, 500) })),
+    seedFiles: seedFiles.map(f => ({ path: f.path, content: f.content.slice(0, 8000) })),
     memory: buildBuildMemory([]),
   };
   return onToken

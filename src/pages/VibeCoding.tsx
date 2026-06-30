@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
-  Sparkles, Activity, Brain, Github, History, Clock,
-  Coins, RotateCcw, ChevronDown, DollarSign, Save,
+  Sparkles, Activity, Brain, Github, History, Clock, ChevronUp,
+  Coins, RotateCcw, ChevronDown, ChevronLeft, DollarSign, Save,
   FolderGit2, AlertTriangle, Rocket, GitBranch, CheckCircle2,
   XCircle, Upload, RefreshCw, Eye, Terminal, Zap, Play,
   Info, ChevronUp, Minimize2, Maximize2
@@ -201,6 +201,8 @@ const VibeCoding = () => {
   const [buildMode, setBuildMode] = useState<BuildMode>("vibe");
   const [projectType, setProjectType] = useState<ProjectType | null>(null);
   const [rightTab, setRightTab] = useState<"preview" | "code" | "logs">("preview");
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [importPrompt, setImportPrompt] = useState("");
   const [bottomTab, setBottomTab] = useState<"activity" | "tasks" | "deploy" | "history" | "import" | "github">("activity");
   const [showStatusBar, setShowStatusBar] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -642,33 +644,37 @@ const VibeCoding = () => {
   const handleImportFiles = (files: GeneratedFile[], repoName: string) => {
     seedFilesRef.current = files;
     seedRepoRef.current = repoName;
-    toast.success(`Imported ${files.length} files from ${repoName}`);
+    toast.success(`Imported ${files.length} files from ${repoName} — describe what to build, debug, or upgrade`);
+    setImportPrompt(`Analyze and upgrade ${repoName}: `);
     setBottomTab("activity");
     setShowImportDialog(false);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
 
-      <main className="pt-16 min-h-screen flex flex-col overflow-hidden">
-        {/* Top bar: input + controls */}
-        <div className="flex-shrink-0 border-b border-border/40 bg-background/95 backdrop-blur px-3 md:px-4 py-2 md:py-3">
-          {/* Row 1: Model Selector + Import Repo + CompactInput + Status toggle */}
-          <div className="flex items-center gap-2 md:gap-3 max-w-none">
-            {/* Model selector — hidden on mobile */}
-            <div className="relative flex-shrink-0 hidden md:block">
+      <main className="pt-14 flex flex-col" style={{ height: '100dvh', paddingTop: '56px' }}>
+
+        {/* ── Top bar ── */}
+        <div className="flex-shrink-0 border-b border-border/40 bg-background/95 backdrop-blur px-3 py-2">
+
+          {/* Row 1: model + import + input + build button */}
+          <div className="flex items-center gap-2">
+            {/* Model selector — icon only on mobile */}
+            <div className="relative flex-shrink-0">
               <button
                 onClick={() => setShowModelMenu(!showModelMenu)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground hover:bg-muted/60"
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground hover:bg-muted/60"
               >
-                <Brain className="h-3 w-3 text-purple-400" />
-                <span className="max-w-[120px] truncate">{selectedModel || "Model"}</span>
+                <Brain className="h-3.5 w-3.5 text-purple-400" />
+                <span className="hidden sm:inline max-w-[100px] truncate">{selectedModel || "Model"}</span>
                 <ChevronDown className="h-3 w-3" />
               </button>
               {showModelMenu && (
-                <div className="absolute top-full mt-1 left-0 z-50 min-w-[200px] bg-popover border border-border rounded-lg shadow-xl p-1">
+                <div className="absolute top-full mt-1 left-0 z-50 min-w-[180px] bg-popover border border-border rounded-lg shadow-xl p-1 max-h-60 overflow-y-auto">
                   {availableModels.map(m => (
                     <button key={m} onClick={() => { setSelectedModel(m); setSelectedModelState(m); setShowModelMenu(false); }}
                       className={`w-full text-left px-3 py-1.5 rounded-md text-xs ${m === selectedModel ? "bg-primary/10 text-primary" : "hover:bg-muted text-foreground"}`}>
@@ -688,129 +694,95 @@ const VibeCoding = () => {
               <span className="hidden md:inline">Import Repo</span>
             </button>
 
-            {/* Main input */}
+            {/* Main input — takes all remaining space */}
             <div className="flex-1 min-w-0">
-              <CompactInput onSubmit={runAutonomousAgents} isRunning={isRunning} onStop={handleStop} />
+              <CompactInput onSubmit={runAutonomousAgents} isRunning={isRunning} onStop={handleStop} initialValue={importPrompt} onInitialValueConsumed={() => setImportPrompt("")} />
             </div>
 
-            {/* Status bar toggle */}
+            {/* Activity panel toggle (mobile) */}
             <button
-              onClick={() => setShowStatusBar(!showStatusBar)}
-              className="flex-shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
-              title={showStatusBar ? "Hide session stats" : "Show session stats"}
+              onClick={() => setRightPanelOpen(v => !v)}
+              className="md:hidden flex-shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground hover:bg-muted/60"
             >
-              {showStatusBar ? <ChevronUp className="h-3.5 w-3.5" /> : <Info className="h-3.5 w-3.5" />}
+              <Activity className="h-3.5 w-3.5" />
+              {messages.length > 0 && <span className="text-[10px] bg-primary/20 text-primary rounded-full px-1">{messages.length}</span>}
             </button>
           </div>
 
-          {/* Row 2 (collapsible): Mobile model selector + Status badges */}
-          {showStatusBar && (
-            <div className="mt-2 flex items-center gap-2 flex-wrap">
-              {/* Mobile model selector */}
-              <div className="relative flex-shrink-0 md:hidden">
-                <button
-                  onClick={() => setShowModelMenu(!showModelMenu)}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-muted/40 border border-border/40 text-[10px] text-muted-foreground hover:bg-muted/60"
-                >
-                  <Brain className="h-3 w-3 text-purple-400" />
-                  <span className="max-w-[80px] truncate">{selectedModel || "Model"}</span>
-                  <ChevronDown className="h-2.5 w-2.5" />
-                </button>
-                {showModelMenu && (
-                  <div className="absolute top-full mt-1 left-0 z-50 min-w-[160px] bg-popover border border-border rounded-lg shadow-xl p-1">
-                    {availableModels.map(m => (
-                      <button key={m} onClick={() => { setSelectedModel(m); setSelectedModelState(m); setShowModelMenu(false); }}
-                        className={`w-full text-left px-2.5 py-1 rounded-md text-[11px] ${m === selectedModel ? "bg-primary/10 text-primary" : "hover:bg-muted text-foreground"}`}>
-                        {m}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Cost + tokens */}
-              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-lg border border-border/30">
-                <DollarSign className="h-3 w-3 text-emerald-400" />
-                <span className="font-mono">{formatCost(sessionCost)}</span>
-                <span className="opacity-40">·</span>
-                <Coins className="h-3 w-3 text-amber-400" />
-                <span>{sessionTokens.toLocaleString()}</span>
-                <button onClick={() => { resetSessionTokens(); resetSessionCost(); setSessionTokens(0); setSessionCost(0); }}>
-                  <RotateCcw className="h-2.5 w-2.5 ml-1 opacity-50 hover:opacity-100" />
-                </button>
-              </div>
-
-              {/* Live Search Status */}
-              {searchStatus && (
-                <div className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border ${
-                  searchStatus.tavily
-                    ? "text-cyan-400 bg-cyan-500/10 border-cyan-500/20"
-                    : "text-muted-foreground bg-muted/30 border-border/30"
-                }`}>
-                  <span>{searchStatus.tavily ? "🔍 Live Search" : "🔍 DDG"}</span>
-                </div>
-              )}
-
-              {autoSaved && (
-                <span className="flex items-center gap-1 text-[11px] text-emerald-400">
-                  <Save className="h-3 w-3" /> Saved
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Agent pipeline strip — collapsible */}
-          <div className="mt-1 overflow-x-auto">
-            <div className="flex items-center gap-2">
-              <div className="flex-1 min-w-0">
-                {showPipeline && (
-                  <AgentPipeline currentAgent={currentAgent} completedAgents={completedAgents} agentSequence={agentSequence} />
-                )}
-              </div>
-              <button
-                onClick={() => setShowPipeline(!showPipeline)}
-                className="flex-shrink-0 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors lg:hidden"
-                title={showPipeline ? "Collapse pipeline" : "Show pipeline"}
-              >
-                {showPipeline ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          {/* Row 2: cost + status — scrollable on mobile */}
+          <div className="flex items-center gap-2 mt-1.5 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-lg border border-border/30 flex-shrink-0">
+              <DollarSign className="h-3 w-3 text-emerald-400" />
+              <span className="font-mono">{formatCost(sessionCost)}</span>
+              <span className="opacity-40">·</span>
+              <Coins className="h-3 w-3 text-amber-400" />
+              <span>{sessionTokens.toLocaleString()}</span>
+              <button onClick={() => { resetSessionTokens(); resetSessionCost(); setSessionTokens(0); setSessionCost(0); }}>
+                <RotateCcw className="h-2.5 w-2.5 ml-1 opacity-50 hover:opacity-100" />
               </button>
             </div>
+            {searchStatus && (
+              <div className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border flex-shrink-0 ${
+                searchStatus.tavily ? "text-cyan-400 bg-cyan-500/10 border-cyan-500/20" : "text-muted-foreground bg-muted/30 border-border/30"
+              }`}>
+                <span>{searchStatus.tavily ? "🔍 Live" : "🔍 DDG"}</span>
+              </div>
+            )}
+            {autoSaved && (
+              <span className="flex items-center gap-1 text-[11px] text-emerald-400 flex-shrink-0">
+                <Save className="h-3 w-3" /> Saved
+              </span>
+            )}
+            {isRunning && (
+              <span className="flex items-center gap-1 text-[11px] text-cyan-400 animate-pulse flex-shrink-0">
+                <Zap className="h-3 w-3" /> Building…
+              </span>
+            )}
+          </div>
+
+          {/* Row 3: agent pipeline — scrollable */}
+          <div className="mt-1.5 overflow-x-auto no-scrollbar">
+            <AgentPipeline currentAgent={currentAgent} completedAgents={completedAgents} agentSequence={agentSequence} />
           </div>
         </div>
 
         {/* Provider warning */}
         {providerStatus && !providerStatus.anyConfigured && (
-          <div className="flex-shrink-0 bg-amber-500/10 border-b border-amber-500/30 px-4 py-2 flex items-center gap-2 text-xs text-amber-400">
+          <div className="flex-shrink-0 bg-amber-500/10 border-b border-amber-500/30 px-3 py-2 flex items-center gap-2 text-xs text-amber-400">
             <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-            <span>No AI providers configured. Set at least one API key (Groq/Gemini are free) to start building.</span>
+            <span>No AI providers configured — set a free Groq or Gemini key to start.</span>
           </div>
         )}
 
-        {/* ── Main workspace: responsive split pane ── */}
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
+        {/* ── Main workspace ── */}
+        <div className="flex-1 flex overflow-hidden min-h-0 relative">
 
-          {/* LEFT: Preview / Code / Logs */}
-          <div className="flex-1 flex flex-col min-w-0 border-b lg:border-b-0 lg:border-r border-border/40 min-h-0">
-            {/* Right pane tab bar */}
-            <div className="flex-shrink-0 flex items-center gap-0.5 px-3 py-2 border-b border-border/40 bg-muted/20">
+          {/* LEFT / MAIN: Preview + Code + Logs */}
+          <div className="flex flex-col flex-1 min-w-0 border-r border-border/40">
+            {/* Tab bar */}
+            <div className="flex-shrink-0 flex items-center gap-0.5 px-3 py-1.5 border-b border-border/40 bg-muted/20">
               {[
-                { id: "preview", icon: Eye, label: "Live Preview" },
+                { id: "preview", icon: Eye, label: "Preview" },
                 { id: "code", icon: Terminal, label: "Code" },
                 { id: "logs", icon: Activity, label: "Logs" },
               ].map(({ id, icon: Icon, label }) => (
                 <button key={id} onClick={() => setRightTab(id as any)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${rightTab === id ? "bg-background text-foreground shadow-sm border border-border/50" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"}`}>
                   <Icon className="h-3.5 w-3.5" />
-                  {label}
+                  <span className="hidden sm:inline">{label}</span>
                 </button>
               ))}
-              <div className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
+              <div className="ml-auto flex items-center gap-2 text-[11px] text-muted-foreground">
                 {generatedFiles.length > 0 && <span>{generatedFiles.length} files</span>}
-                {isRunning && (
-                  <span className="flex items-center gap-1 text-cyan-400 animate-pulse">
-                    <Zap className="h-3 w-3" /> Building…
-                  </span>
-                )}
+                {/* Show activity panel button on desktop */}
+                <button
+                  onClick={() => setRightPanelOpen(v => !v)}
+                  className="hidden md:flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-muted/40 border border-border/40 hover:bg-muted/60"
+                >
+                  <Activity className="h-3 w-3" />
+                  <span>{rightPanelOpen ? "Hide" : "Activity"}</span>
+                  {rightPanelOpen ? <ChevronLeft className="h-3 w-3" /> : <ChevronDown className="h-3 w-3 rotate-[-90deg]" />}
+                </button>
               </div>
             </div>
 
@@ -846,12 +818,30 @@ const VibeCoding = () => {
                 </div>
               )}
             </div>
+
+            {/* Chat iteration at bottom of main panel */}
+            {generatedFiles.length > 0 && (
+              <div className="flex-shrink-0 border-t border-border/40">
+                <ChatIteration files={generatedFiles} onFilesUpdated={setGeneratedFiles} isAgentRunning={isRunning} />
+              </div>
+            )}
           </div>
 
-          {/* RIGHT: Activity / Tasks / Deploy / History / Import — responsive sidebar */}
-          <div className="w-full lg:w-80 flex-shrink-0 flex flex-col max-h-[50vh] lg:max-h-none min-h-0">
-            {/* Bottom pane tab bar */}
-            <div className="flex-shrink-0 flex items-center gap-0.5 px-2 py-2 border-b border-border/40 bg-muted/20 overflow-x-auto">
+          {/* RIGHT: Activity panel — always visible on desktop, overlay on mobile */}
+          <div className={`flex-col min-h-0 bg-background border-l border-border/40 flex-shrink-0
+            ${rightPanelOpen
+              ? 'flex absolute inset-0 z-30 md:static md:inset-auto md:w-72'
+              : 'hidden'}`}>
+            {/* Panel header with close on mobile */}
+            <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-border/40 bg-muted/20 md:hidden">
+              <span className="text-sm font-medium text-foreground">Activity</span>
+              <button onClick={() => setRightPanelOpen(false)} className="p-1.5 rounded-md hover:bg-muted/60 text-muted-foreground">
+                <ChevronUp className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Tab bar */}
+            <div className="flex-shrink-0 flex flex-wrap items-center gap-0.5 px-2 py-1.5 border-b border-border/40 bg-muted/20">
               {[
                 { id: "activity", icon: Activity, label: "Activity", hint: "Agent logs" },
                 { id: "tasks", icon: Brain, label: "Tasks", hint: "Build tasks" },
@@ -884,7 +874,6 @@ const VibeCoding = () => {
                   )}
                 </div>
               )}
-
               {bottomTab === "tasks" && (
                 <div>
                   {tasks.length > 0
@@ -893,33 +882,22 @@ const VibeCoding = () => {
                   }
                 </div>
               )}
-
               {bottomTab === "deploy" && (
                 <div>
                   <p className="text-[11px] text-muted-foreground mb-3">Push generated files directly to GitHub, then deploy in one click.</p>
                   <DeployPanel files={generatedFiles} goal={currentGoal} />
                 </div>
               )}
-
               {bottomTab === "history" && (
                 <HistoryPanel history={projectHistory} onLoad={loadProject} />
               )}
-
               {bottomTab === "import" && (
                 <RepoImport onFilesLoaded={handleImportFiles} />
               )}
-
               {bottomTab === "github" && (
                 <GitHubConnect onFilesLoaded={handleImportFiles} />
               )}
             </div>
-
-            {/* Chat iteration — always visible at bottom */}
-            {generatedFiles.length > 0 && (
-              <div className="flex-shrink-0 border-t border-border/40">
-                <ChatIteration files={generatedFiles} onFilesUpdated={setGeneratedFiles} isAgentRunning={isRunning} />
-              </div>
-            )}
           </div>
         </div>
       </main>

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, KeyboardEvent } from "react";
+import { useState, useRef, useCallback, useEffect, KeyboardEvent } from "react";
 import { Send, StopCircle, Sparkles, Bot, Mic, MicOff, Loader2, ChevronDown } from "lucide-react";
 import { BuildMode, ProjectType, PROJECT_TYPES } from "./VibeInput";
 
@@ -6,13 +6,24 @@ interface CompactInputProps {
   onSubmit: (goal: string, mode: BuildMode, projectType?: ProjectType) => void;
   isRunning: boolean;
   onStop?: () => void;
+  initialValue?: string;
+  onInitialValueConsumed?: () => void;
 }
 
-export default function CompactInput({ onSubmit, isRunning, onStop }: CompactInputProps) {
-  const [input, setInput] = useState("");
+export default function CompactInput({ onSubmit, isRunning, onStop, initialValue, onInitialValueConsumed }: CompactInputProps) {
+  const [input, setInput] = useState(initialValue || "");
   const [mode, setMode] = useState<BuildMode>("vibe");
   const [showModeMenu, setShowModeMenu] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Pre-fill input when a repo is imported
+  useEffect(() => {
+    if (initialValue) {
+      setInput(initialValue);
+      if (textareaRef.current) textareaRef.current.focus();
+      onInitialValueConsumed?.();
+    }
+  }, [initialValue]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
