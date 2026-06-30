@@ -113,7 +113,17 @@ export default function Superagent() {
         body: JSON.stringify({ goal, model, sessionId }),
       });
 
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      if (!res.ok) {
+        let errStr = `${res.status} ${res.statusText}`;
+        try {
+          const errData = await res.json();
+          if (errData.error) errStr = errData.error;
+        } catch {
+          // Keep generic error if JSON parsing fails
+        }
+        throw new Error(errStr);
+      }
+
       const data: TaskResult = await res.json();
       setResult(data);
       setClassification(data.classification);

@@ -322,40 +322,39 @@ export async function executeTask(
   const sessionId = options.sessionId || randomUUID();
   const { model, onToken, onClassified, onProgress } = options;
 
-  // Retrieve memory to give agent context from past work
-  const memories = await retrieveMemory(goal, 8);
-  const memCtx = memories.length > 0
-    ? `\n\nPAST CONTEXT:\n${memories.map(m => `[${m.type}] ${m.content}`).join("\n")}`
-    : "";
-
-  const enrichedGoal = `${goal}${memCtx}`;
-
-  onProgress?.("🧠 Classifying task…");
-  workerBus.emit("superagent:classifying", { sessionId, goal });
-
-  const classification = await classifyTask(enrichedGoal, model);
-  onClassified?.(classification);
-
-  onProgress?.(`📋 Task: ${classification.title} | ${classification.complexity} | ${classification.category}`);
-  workerBus.emit("superagent:classified", { sessionId, classification });
-
-  // Store intent in memory
-  await storeMemory({
-    session_id: sessionId,
-    agent: "superagent",
-    type: "context",
-    content: `Task: ${classification.title} | Category: ${classification.category} | Complexity: ${classification.complexity}`,
-    tags: [classification.category, classification.complexity],
-  });
-
   const result: SuperagentTaskResult = {
     sessionId,
-    classification,
+    classification: null as any,
     summary: "",
     durationMs: 0,
   };
 
   try {
+    const memories = await retrieveMemory(goal, 8);
+    const memCtx = memories.length > 0
+      ? `\n\nPAST CONTEXT:\n${memories.map(m => `[${m.type}] ${m.content}`).join("\n")}`
+      : "";
+
+    const enrichedGoal = `${goal}${memCtx}`;
+
+    onProgress?.("🧠 Classifying task…");
+    workerBus.emit("superagent:classifying", { sessionId, goal });
+
+    const classification = await classifyTask(enrichedGoal, model);
+    result.classification = classification;
+    onClassified?.(classification);
+
+    onProgress?.(`📋 Task: ${classification.title} | ${classification.complexity} | ${classification.category}`);
+    workerBus.emit("superagent:classified", { sessionId, classification });
+
+    // Store intent in memory
+    await storeMemory({
+      session_id: sessionId,
+      agent: "superagent",
+      type: "context",
+      content: `Task: ${classification.title} | Category: ${classification.category} | Complexity: ${classification.complexity}`,
+      tags: [classification.category, classification.complexity],
+    });
     if (classification.complexity === "simple" || !classification.requiresAgentPipeline) {
       onProgress?.("⚡ Executing directly…");
       const { output } = await executeSimple(goal, classification, model, onToken);
