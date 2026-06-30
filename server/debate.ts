@@ -1,4 +1,4 @@
-import { callAI, parseJsonResponse } from "./routes";
+import { callAI, parseJsonResponse } from "./aiCore";
 import { workerBus } from "./agentWorker";
 
 export type DebateVerdict = "PROCEED" | "REFINE" | "ESCALATE";

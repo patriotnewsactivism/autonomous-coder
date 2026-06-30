@@ -15,7 +15,7 @@
  * This is the omnipresence layer. One agent, all tasks.
  */
 
-import { callAI, parseJsonResponse } from "./routes";
+import { callAI, parseJsonResponse } from "./aiCore";
 import { storeMemory, retrieveMemory } from "./agentMemory";
 import { runWorkerJob, runParallelWorkers, spawnSubWorkers, workerBus, WorkerJob } from "./agentWorker";
 import { randomUUID } from "crypto";
