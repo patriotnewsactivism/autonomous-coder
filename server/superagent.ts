@@ -391,8 +391,8 @@ export async function executeTask(
       session_id: sessionId,
       agent: "superagent",
       type: "failure",
-      content: `Task failed: ${classification.title} — ${result.summary}`,
-      tags: [classification.category, "failure"],
+      content: `Task failed: ${result.classification?.title || "Unknown Task"} — ${result.summary}`,
+      tags: [result.classification?.category || "general", "failure"],
       score: -2,
     });
   }
