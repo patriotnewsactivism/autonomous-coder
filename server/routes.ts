@@ -215,7 +215,16 @@ RULES:
 - Dark theme support with dark: variants
 - Error states, loading states, empty states for every component
 - Accessible HTML (aria attributes, semantic elements)
-- Include realistic sample data for demonstrations`,
+- Include realistic sample data for demonstrations
+
+IMPORTED REPO MODE (when seedFiles are provided):
+- seedFiles contain the EXISTING codebase — read them carefully before writing anything
+- Use type "update" for files that exist in seedFiles and need modification
+- Use type "create" only for genuinely new files not in the seed
+- Preserve the existing architecture, file structure, imports, and naming conventions
+- When debugging: identify the root cause first, then output ONLY the files that need to change
+- When upgrading: build on top of existing patterns, don't rewrite what works
+- Match the existing code style exactly (spacing, naming, patterns)`,
 
   testing: `You are the TESTING agent - expert in test-driven development.
 
@@ -967,7 +976,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       allFiles.sort((a: any, b: any) => priority(a.path) - priority(b.path));
 
       // Fetch content for up to 40 files (covers most repos for AI context)
-      const filesToFetch = allFiles.slice(0, 40);
+      const filesToFetch = allFiles.slice(0, 80);
       const fileResults = await Promise.allSettled(
         filesToFetch.map(async (f: any) => {
           const contentRes = await fetch(
@@ -977,7 +986,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           if (!contentRes.ok) return null;
           const fileData = await contentRes.json();
           // Skip files > 100KB (likely generated/binary)
-          if (fileData.size > 100000) return null;
+          if (fileData.size > 200000) return null;
           const fileContent = Buffer.from(fileData.content, "base64").toString("utf-8");
           return { path: f.path, content: fileContent, size: fileData.size };
         })
@@ -1047,7 +1056,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         codeExts.some((ext) => f.path.endsWith(ext))
       );
 
-      const filesToFetch = allFiles.slice(0, 40);
+      const filesToFetch = allFiles.slice(0, 80);
       const fileResults = await Promise.allSettled(
         filesToFetch.map(async (f: any) => {
           const r = await fetch(

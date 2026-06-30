@@ -197,7 +197,8 @@ const VibeCoding = () => {
   const [buildMode, setBuildMode] = useState<BuildMode>("vibe");
   const [projectType, setProjectType] = useState<ProjectType | null>(null);
   const [rightTab, setRightTab] = useState<"preview" | "code" | "logs">("preview");
-  const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [importPrompt, setImportPrompt] = useState("");
   const [bottomTab, setBottomTab] = useState<"activity" | "tasks" | "deploy" | "history" | "import" | "github">("activity");
   const stopRef = useRef(false);
   const seedFilesRef = useRef<GeneratedFile[]>([]);
@@ -636,7 +637,8 @@ const VibeCoding = () => {
   const handleImportFiles = (files: GeneratedFile[], repoName: string) => {
     seedFilesRef.current = files;
     seedRepoRef.current = repoName;
-    toast.success(`Imported ${files.length} files from ${repoName}`);
+    toast.success(`Imported ${files.length} files from ${repoName} — describe what to build, debug, or upgrade`);
+    setImportPrompt(`Analyze and upgrade ${repoName}: `);
     setBottomTab("activity");
   };
 
@@ -677,7 +679,7 @@ const VibeCoding = () => {
 
             {/* Main input — takes all remaining space */}
             <div className="flex-1 min-w-0">
-              <CompactInput onSubmit={runAutonomousAgents} isRunning={isRunning} onStop={handleStop} />
+              <CompactInput onSubmit={runAutonomousAgents} isRunning={isRunning} onStop={handleStop} initialValue={importPrompt} onInitialValueConsumed={() => setImportPrompt("")} />
             </div>
 
             {/* Activity panel toggle (mobile) */}
@@ -738,8 +740,8 @@ const VibeCoding = () => {
         {/* ── Main workspace ── */}
         <div className="flex-1 flex overflow-hidden min-h-0 relative">
 
-          {/* LEFT / MAIN: Preview + Code + Logs — full width on mobile */}
-          <div className={`flex flex-col min-w-0 border-border/40 transition-all duration-200 ${rightPanelOpen ? 'hidden md:flex md:flex-1' : 'flex flex-1'} md:border-r`}>
+          {/* LEFT / MAIN: Preview + Code + Logs */}
+          <div className="flex flex-col flex-1 min-w-0 border-r border-border/40">
             {/* Tab bar */}
             <div className="flex-shrink-0 flex items-center gap-0.5 px-3 py-1.5 border-b border-border/40 bg-muted/20">
               {[
@@ -808,15 +810,11 @@ const VibeCoding = () => {
             )}
           </div>
 
-          {/* RIGHT: Activity panel — slide-over on mobile, fixed sidebar on desktop */}
-          {/* Mobile: full-screen overlay. Desktop: fixed w-80 sidebar */}
-          <div className={`
-            flex flex-col min-h-0 bg-background
+          {/* RIGHT: Activity panel — always visible on desktop, overlay on mobile */}
+          <div className={`flex-col min-h-0 bg-background border-l border-border/40 flex-shrink-0
             ${rightPanelOpen
-              ? 'flex absolute inset-0 z-30 md:static md:inset-auto md:w-80 md:flex-shrink-0'
-              : 'hidden md:hidden'}
-            md:flex md:static md:w-80 md:flex-shrink-0 border-l border-border/40
-          `}>
+              ? 'flex absolute inset-0 z-30 md:static md:inset-auto md:w-72'
+              : 'hidden'}`}>
             {/* Panel header with close on mobile */}
             <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-border/40 bg-muted/20 md:hidden">
               <span className="text-sm font-medium text-foreground">Activity</span>
