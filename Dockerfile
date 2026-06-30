@@ -3,8 +3,9 @@ FROM node:22-slim AS builder
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package.json package-lock.json* ./
+# Use npm install so a stale lockfile never blocks the build
+RUN npm install --ignore-scripts=false
 
 COPY . .
 RUN npm run build
@@ -14,9 +15,9 @@ FROM node:22-slim
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-# Install ALL deps (including optional) so esbuild native binary is present
-RUN npm ci --include=optional
+COPY package.json package-lock.json* ./
+# install prod deps + optional so esbuild/rollup native binaries are present
+RUN npm install --omit=dev --include=optional --ignore-scripts=false
 
 # Copy built artifacts
 COPY --from=builder /app/dist ./dist
