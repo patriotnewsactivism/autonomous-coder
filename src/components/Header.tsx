@@ -9,6 +9,7 @@ const Header = () => {
   const isAnalyzePage = location.pathname === "/";
   const isVibePage = location.pathname === "/vibe";
   const isSuperagentPage = location.pathname === "/superagent";
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navLinks = [
     { to: "/", label: "Analyze Code", icon: Wand2, active: isAnalyzePage },

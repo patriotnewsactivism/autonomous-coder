@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
-  Sparkles, Activity, Brain, Github, History, Clock, ChevronUp,
+  Sparkles, Activity, Brain, Github, History, Clock,
   Coins, RotateCcw, ChevronDown, ChevronLeft, DollarSign, Save,
   FolderGit2, AlertTriangle, Rocket, GitBranch, CheckCircle2,
   XCircle, Upload, RefreshCw, Eye, Terminal, Zap, Play,
@@ -204,9 +204,7 @@ const VibeCoding = () => {
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [importPrompt, setImportPrompt] = useState("");
   const [bottomTab, setBottomTab] = useState<"activity" | "tasks" | "deploy" | "history" | "import" | "github">("activity");
-  const [showStatusBar, setShowStatusBar] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
-  const [showPipeline, setShowPipeline] = useState(true);
   const stopRef = useRef(false);
   const seedFilesRef = useRef<GeneratedFile[]>([]);
   const seedRepoRef = useRef<string>("");
