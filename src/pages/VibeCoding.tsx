@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
-  Sparkles, Activity, Brain, Github, History, Clock,
-  Coins, RotateCcw, ChevronDown, DollarSign, Save,
+  Sparkles, Activity, Brain, Github, History, Clock, ChevronUp,
+  Coins, RotateCcw, ChevronDown, ChevronLeft, DollarSign, Save,
   FolderGit2, AlertTriangle, Rocket, GitBranch, CheckCircle2,
   XCircle, Upload, RefreshCw, Eye, Terminal, Zap, Play
 } from "lucide-react";
@@ -197,6 +197,7 @@ const VibeCoding = () => {
   const [buildMode, setBuildMode] = useState<BuildMode>("vibe");
   const [projectType, setProjectType] = useState<ProjectType | null>(null);
   const [rightTab, setRightTab] = useState<"preview" | "code" | "logs">("preview");
+  const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [bottomTab, setBottomTab] = useState<"activity" | "tasks" | "deploy" | "history" | "import" | "github">("activity");
   const stopRef = useRef(false);
   const seedFilesRef = useRef<GeneratedFile[]>([]);
@@ -852,6 +853,255 @@ const VibeCoding = () => {
                 <ChatIteration files={generatedFiles} onFilesUpdated={setGeneratedFiles} isAgentRunning={isRunning} />
               </div>
             )}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Header />
+
+      <main className="pt-14 flex flex-col" style={{ height: '100dvh', paddingTop: '56px' }}>
+
+        {/* ── Top bar ── */}
+        <div className="flex-shrink-0 border-b border-border/40 bg-background/95 backdrop-blur px-3 py-2">
+
+          {/* Row 1: model + input + build button */}
+          <div className="flex items-center gap-2">
+            {/* Model selector — icon only on mobile */}
+            <div className="relative flex-shrink-0">
+              <button
+                onClick={() => setShowModelMenu(!showModelMenu)}
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground hover:bg-muted/60"
+              >
+                <Brain className="h-3.5 w-3.5 text-purple-400" />
+                <span className="hidden sm:inline max-w-[100px] truncate">{selectedModel || "Model"}</span>
+                <ChevronDown className="h-3 w-3" />
+              </button>
+              {showModelMenu && (
+                <div className="absolute top-full mt-1 left-0 z-50 min-w-[180px] bg-popover border border-border rounded-lg shadow-xl p-1 max-h-60 overflow-y-auto">
+                  {availableModels.map(m => (
+                    <button key={m} onClick={() => { setSelectedModel(m); setSelectedModelState(m); setShowModelMenu(false); }}
+                      className={`w-full text-left px-3 py-1.5 rounded-md text-xs ${m === selectedModel ? "bg-primary/10 text-primary" : "hover:bg-muted text-foreground"}`}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Main input — takes all remaining space */}
+            <div className="flex-1 min-w-0">
+              <CompactInput onSubmit={runAutonomousAgents} isRunning={isRunning} onStop={handleStop} />
+            </div>
+
+            {/* Activity panel toggle (mobile) */}
+            <button
+              onClick={() => setRightPanelOpen(v => !v)}
+              className="md:hidden flex-shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground hover:bg-muted/60"
+            >
+              <Activity className="h-3.5 w-3.5" />
+              {messages.length > 0 && <span className="text-[10px] bg-primary/20 text-primary rounded-full px-1">{messages.length}</span>}
+            </button>
+          </div>
+
+          {/* Row 2: cost + status — scrollable on mobile */}
+          <div className="flex items-center gap-2 mt-1.5 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-lg border border-border/30 flex-shrink-0">
+              <DollarSign className="h-3 w-3 text-emerald-400" />
+              <span className="font-mono">{formatCost(sessionCost)}</span>
+              <span className="opacity-40">·</span>
+              <Coins className="h-3 w-3 text-amber-400" />
+              <span>{sessionTokens.toLocaleString()}</span>
+              <button onClick={() => { resetSessionTokens(); resetSessionCost(); setSessionTokens(0); setSessionCost(0); }}>
+                <RotateCcw className="h-2.5 w-2.5 ml-1 opacity-50 hover:opacity-100" />
+              </button>
+            </div>
+            {searchStatus && (
+              <div className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border flex-shrink-0 ${
+                searchStatus.tavily ? "text-cyan-400 bg-cyan-500/10 border-cyan-500/20" : "text-muted-foreground bg-muted/30 border-border/30"
+              }`}>
+                <span>{searchStatus.tavily ? "🔍 Live" : "🔍 DDG"}</span>
+              </div>
+            )}
+            {autoSaved && (
+              <span className="flex items-center gap-1 text-[11px] text-emerald-400 flex-shrink-0">
+                <Save className="h-3 w-3" /> Saved
+              </span>
+            )}
+            {isRunning && (
+              <span className="flex items-center gap-1 text-[11px] text-cyan-400 animate-pulse flex-shrink-0">
+                <Zap className="h-3 w-3" /> Building…
+              </span>
+            )}
+          </div>
+
+          {/* Row 3: agent pipeline — scrollable */}
+          <div className="mt-1.5 overflow-x-auto no-scrollbar">
+            <AgentPipeline currentAgent={currentAgent} completedAgents={completedAgents} agentSequence={agentSequence} />
+          </div>
+        </div>
+
+        {/* Provider warning */}
+        {providerStatus && !providerStatus.anyConfigured && (
+          <div className="flex-shrink-0 bg-amber-500/10 border-b border-amber-500/30 px-3 py-2 flex items-center gap-2 text-xs text-amber-400">
+            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+            <span>No AI providers configured — set a free Groq or Gemini key to start.</span>
+          </div>
+        )}
+
+        {/* ── Main workspace ── */}
+        <div className="flex-1 flex overflow-hidden min-h-0 relative">
+
+          {/* LEFT / MAIN: Preview + Code + Logs — full width on mobile */}
+          <div className={`flex flex-col min-w-0 border-border/40 transition-all duration-200 ${rightPanelOpen ? 'hidden md:flex md:flex-1' : 'flex flex-1'} md:border-r`}>
+            {/* Tab bar */}
+            <div className="flex-shrink-0 flex items-center gap-0.5 px-3 py-1.5 border-b border-border/40 bg-muted/20">
+              {[
+                { id: "preview", icon: Eye, label: "Preview" },
+                { id: "code", icon: Terminal, label: "Code" },
+                { id: "logs", icon: Activity, label: "Logs" },
+              ].map(({ id, icon: Icon, label }) => (
+                <button key={id} onClick={() => setRightTab(id as any)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${rightTab === id ? "bg-background text-foreground shadow-sm border border-border/50" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"}`}>
+                  <Icon className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{label}</span>
+                </button>
+              ))}
+              <div className="ml-auto flex items-center gap-2 text-[11px] text-muted-foreground">
+                {generatedFiles.length > 0 && <span>{generatedFiles.length} files</span>}
+                {/* Show activity panel button on desktop */}
+                <button
+                  onClick={() => setRightPanelOpen(v => !v)}
+                  className="hidden md:flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-muted/40 border border-border/40 hover:bg-muted/60"
+                >
+                  <Activity className="h-3 w-3" />
+                  <span>{rightPanelOpen ? "Hide" : "Activity"}</span>
+                  {rightPanelOpen ? <ChevronLeft className="h-3 w-3" /> : <ChevronDown className="h-3 w-3 rotate-[-90deg]" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-hidden">
+              {rightTab === "preview" && (
+                <SandboxPanel
+                  files={generatedFiles}
+                  status={sandbox.state.status}
+                  buildLog={sandbox.state.buildLog}
+                  workerEvents={sandbox.state.workerEvents}
+                  agentScores={sandbox.state.agentScores}
+                  activeAgents={sandbox.state.activeAgents}
+                  completedAgents={sandbox.state.completedAgents}
+                  error={sandbox.state.error}
+                  previewErrors={sandbox.state.previewErrors}
+                  observationCount={sandbox.state.observationCount}
+                  className="h-full"
+                />
+              )}
+              {rightTab === "code" && (
+                <div className="h-full overflow-auto">
+                  <CodeWorkspace files={generatedFiles} onFilesUpdated={setGeneratedFiles} />
+                </div>
+              )}
+              {rightTab === "logs" && (
+                <div className="h-full overflow-auto bg-black/40 font-mono text-[11px] p-4 space-y-0.5">
+                  {sandbox.state.buildLog.length === 0 && (
+                    <p className="text-muted-foreground text-center py-8">Logs will appear here when a build starts</p>
+                  )}
+                  {sandbox.state.buildLog.map((line, i) => (
+                    <div key={i} className="text-slate-300 leading-5">{line}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Chat iteration at bottom of main panel */}
+            {generatedFiles.length > 0 && (
+              <div className="flex-shrink-0 border-t border-border/40">
+                <ChatIteration files={generatedFiles} onFilesUpdated={setGeneratedFiles} isAgentRunning={isRunning} />
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT: Activity panel — slide-over on mobile, fixed sidebar on desktop */}
+          {/* Mobile: full-screen overlay. Desktop: fixed w-80 sidebar */}
+          <div className={`
+            flex flex-col min-h-0 bg-background
+            ${rightPanelOpen
+              ? 'flex absolute inset-0 z-30 md:static md:inset-auto md:w-80 md:flex-shrink-0'
+              : 'hidden md:hidden'}
+            md:flex md:static md:w-80 md:flex-shrink-0 border-l border-border/40
+          `}>
+            {/* Panel header with close on mobile */}
+            <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-border/40 bg-muted/20 md:hidden">
+              <span className="text-sm font-medium text-foreground">Activity</span>
+              <button onClick={() => setRightPanelOpen(false)} className="p-1.5 rounded-md hover:bg-muted/60 text-muted-foreground">
+                <ChevronUp className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Tab bar */}
+            <div className="flex-shrink-0 flex flex-wrap items-center gap-0.5 px-2 py-1.5 border-b border-border/40 bg-muted/20">
+              {[
+                { id: "activity", icon: Activity, label: "Activity" },
+                { id: "tasks", icon: Brain, label: "Tasks" },
+                { id: "deploy", icon: Rocket, label: "Deploy" },
+                { id: "history", icon: History, label: "History" },
+                { id: "import", icon: FolderGit2, label: "Import" },
+                { id: "github", icon: Github, label: "GitHub" },
+              ].map(({ id, icon: Icon, label }) => (
+                <button key={id} onClick={() => setBottomTab(id as any)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${bottomTab === id ? "bg-background text-foreground shadow-sm border border-border/50" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"}`}>
+                  <Icon className="h-3 w-3" />
+                  {label}
+                  {id === "history" && projectHistory.length > 0 && (
+                    <span className="bg-primary/20 text-primary rounded-full px-1 text-[9px]">{projectHistory.length}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1 overflow-auto p-3">
+              {bottomTab === "activity" && (
+                <div className="space-y-3">
+                  <AgentActivityFeed messages={messages} workerEvents={sandbox.state.workerEvents} isRunning={isRunning} />
+                  {messages.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                      <p className="text-xs">Agent activity appears here as your build runs</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {bottomTab === "tasks" && (
+                <div>
+                  {tasks.length > 0
+                    ? <TaskList tasks={tasks} currentTaskId={currentTaskId} />
+                    : <p className="text-xs text-muted-foreground text-center py-8">Tasks appear after Strategist runs</p>
+                  }
+                </div>
+              )}
+              {bottomTab === "deploy" && (
+                <div>
+                  <p className="text-[11px] text-muted-foreground mb-3">Push generated files directly to GitHub, then deploy in one click.</p>
+                  <DeployPanel files={generatedFiles} goal={currentGoal} />
+                </div>
+              )}
+              {bottomTab === "history" && (
+                <HistoryPanel history={projectHistory} onLoad={loadProject} />
+              )}
+              {bottomTab === "import" && (
+                <RepoImport onFilesLoaded={handleImportFiles} />
+              )}
+              {bottomTab === "github" && (
+                <GitHubConnect onFilesLoaded={handleImportFiles} />
+              )}
+            </div>
           </div>
         </div>
       </main>
