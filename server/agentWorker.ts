@@ -13,26 +13,35 @@ function getModelForAgent(agentType: string, requestedModel?: string): string | 
   const env = process.env;
 
   // Role → preferred model, in priority order
-  // Heavy reasoning roles: use DeepSeek V4 Pro or Kilo auto if available
-  const heavyRoles = ["orchestrator", "reviewer", "security", "performance"];
-  // Speed roles: use DeepSeek V4 Flash or Gemini 2.5
-  const speedRoles = ["strategist", "builder", "fixer", "database", "api", "ui", "testing", "refiner"];
+  // Heavy reasoning roles: DeepSeek V4 Pro (deep analysis) or Kilo auto (premium routing)
+  const heavyRoles = ["orchestrator", "reviewer", "security", "performance", "architect", "analyst", "researcher"];
+  // Speed roles: DeepSeek V4 Flash (fast + cheap) for code generation
+  const speedRoles = ["strategist", "builder", "fixer", "database", "api", "ui", "testing", "refiner", "mobile", "deployer"];
+  // Creative/specialized roles: Kilo auto routes to best model (Claude, GPT-5.5, etc.)
+  const creativeRoles = ["seo", "a11y", "docs", "optimizer"];
 
   const hasDeepSeek = !!(env.DEEPSEEK_API_KEY);
   const hasKilo = !!(env.KILOCODE_API_KEY || env.KILO_API_KEY);
   const hasGemini = !!(env.GEMINI_API_KEY || env.GOOGLE_API_KEY);
 
   if (heavyRoles.includes(agentType)) {
-    if (hasKilo) return "kilo/auto";           // Kilo smart-routes to best available
-    if (hasDeepSeek) return "deepseek-v4-pro"; // DeepSeek V4 Pro for reasoning
+    if (hasDeepSeek) return "deepseek-v4-pro"; // DeepSeek V4 Pro — best for deep reasoning
+    if (hasKilo) return "kilo/auto";           // Kilo smart-routes to premium model
     if (hasGemini) return "gemini-2.5-flash";
-    return undefined; // let callAI pick default
+    return undefined;
   }
 
   if (speedRoles.includes(agentType)) {
-    if (hasDeepSeek) return "deepseek-v4-flash"; // Fast + cheap
+    if (hasDeepSeek) return "deepseek-v4-flash"; // Fast + cheap for code gen
     if (hasKilo) return "kilo/auto";
     if (hasGemini) return "gemini-2.0-flash";
+    return undefined;
+  }
+
+  if (creativeRoles.includes(agentType)) {
+    if (hasKilo) return "kilo/auto";           // Kilo picks Claude/GPT for creative tasks
+    if (hasGemini) return "gemini-2.5-flash";
+    if (hasDeepSeek) return "deepseek-v4-pro";
     return undefined;
   }
 

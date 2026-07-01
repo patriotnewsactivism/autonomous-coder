@@ -1,73 +1,99 @@
-import AgentAvatar, { agentConfig } from "./AgentAvatar";
 import { AgentType } from "@/lib/agents";
-import { motion } from "framer-motion";
-import { ArrowRight, ChevronRight } from "lucide-react";
+import {
+  Brain, Code2, Database, Globe, Layers, Shield, Zap, Rocket,
+  CheckCircle2, XCircle, Loader2, Clock, Search, Map, FileText,
+  Smartphone, BarChart3, Accessibility, BookOpen, TrendingUp, FlaskConical
+} from "lucide-react";
+
+const AGENT_META: Record<AgentType, { icon: any; label: string; color: string; category: string; model?: string }> = {
+  orchestrator:  { icon: Brain,         label: "Orchestrator",  color: "text-purple-400",  category: "Core",       model: "DeepSeek V4 Pro" },
+  strategist:    { icon: Map,           label: "Strategist",    color: "text-blue-400",    category: "Core",       model: "DeepSeek Flash" },
+  researcher:    { icon: Search,        label: "Researcher",    color: "text-cyan-400",    category: "Research",   model: "DeepSeek V4 Pro" },
+  architect:     { icon: Layers,        label: "Architect",     color: "text-indigo-400",  category: "Research",   model: "DeepSeek V4 Pro" },
+  analyst:       { icon: BarChart3,     label: "Analyst",       color: "text-sky-400",     category: "Research",   model: "DeepSeek V4 Pro" },
+  database:      { icon: Database,      label: "Database",      color: "text-amber-400",   category: "Build",      model: "DeepSeek Flash" },
+  api:           { icon: Globe,         label: "API",           color: "text-green-400",   category: "Build",      model: "DeepSeek Flash" },
+  ui:            { icon: Layers,        label: "UI/UX",         color: "text-pink-400",    category: "Build",      model: "DeepSeek Flash" },
+  builder:       { icon: Code2,         label: "Builder",       color: "text-violet-400",  category: "Build",      model: "DeepSeek Flash" },
+  mobile:        { icon: Smartphone,    label: "Mobile",        color: "text-fuchsia-400", category: "Build",      model: "DeepSeek Flash" },
+  testing:       { icon: FlaskConical,  label: "Testing",       color: "text-yellow-400",  category: "Quality",    model: "DeepSeek Flash" },
+  security:      { icon: Shield,        label: "Security",      color: "text-red-400",     category: "Quality",    model: "DeepSeek V4 Pro" },
+  performance:   { icon: Zap,           label: "Performance",   color: "text-orange-400",  category: "Quality",    model: "DeepSeek V4 Pro" },
+  seo:           { icon: TrendingUp,    label: "SEO",           color: "text-lime-400",    category: "Polish",     model: "Kilo Auto" },
+  a11y:          { icon: Accessibility, label: "Accessibility", color: "text-teal-400",    category: "Polish",     model: "Kilo Auto" },
+  docs:          { icon: BookOpen,      label: "Docs",          color: "text-slate-400",   category: "Polish",     model: "Kilo Auto" },
+  optimizer:     { icon: TrendingUp,    label: "Optimizer",     color: "text-emerald-400", category: "Polish",     model: "Kilo Auto" },
+  reviewer:      { icon: CheckCircle2,  label: "Reviewer",      color: "text-blue-400",    category: "Review",     model: "DeepSeek V4 Pro" },
+  fixer:         { icon: Zap,           label: "Fixer",         color: "text-orange-400",  category: "Review",     model: "DeepSeek Flash" },
+  refiner:       { icon: FileText,      label: "Refiner",       color: "text-purple-300",  category: "Review",     model: "DeepSeek Flash" },
+  deployer:      { icon: Rocket,        label: "Deployer",      color: "text-green-500",   category: "Deploy",     model: "DeepSeek Flash" },
+};
+
+const CATEGORY_ORDER = ["Core", "Research", "Build", "Quality", "Polish", "Review", "Deploy"];
 
 interface AgentPipelineProps {
-  currentAgent?: AgentType;
-  completedAgents: AgentType[];
+  currentAgent?: AgentType | null;
+  completedAgents?: AgentType[];
   agentSequence?: AgentType[];
 }
 
-const defaultSequence: AgentType[] = ["orchestrator", "strategist", "builder", "reviewer", "fixer"];
+function AgentBadge({ agent, status }: { agent: AgentType; status: "waiting" | "running" | "done" | "failed" }) {
+  const meta = AGENT_META[agent] || { icon: Brain, label: agent, color: "text-slate-400", category: "Other" };
+  const Icon = meta.icon;
 
-const AgentPipeline = ({ currentAgent, completedAgents, agentSequence }: AgentPipelineProps) => {
-  const pipeline = agentSequence && agentSequence.length > 0 ? agentSequence : defaultSequence;
+  const statusIcon =
+    status === "running" ? <Loader2 className="w-3 h-3 animate-spin text-yellow-400" /> :
+    status === "done"    ? <CheckCircle2 className="w-3 h-3 text-green-400" /> :
+    status === "failed"  ? <XCircle className="w-3 h-3 text-red-400" /> :
+                           <Clock className="w-3 h-3 text-slate-600" />;
 
-  const renderAgent = (agent: AgentType, index: number, isLast: boolean, compact: boolean) => {
-    const isActive = currentAgent === agent;
-    const isCompleted = completedAgents.includes(agent);
-    const config = agentConfig[agent] ?? agentConfig.orchestrator;
-    const size = compact ? "sm" : "md";
+  const ring =
+    status === "running" ? "border-yellow-500/50 bg-yellow-500/5 shadow-yellow-500/20 shadow-sm" :
+    status === "done"    ? "border-green-500/40 bg-green-500/5" :
+    status === "failed"  ? "border-red-500/40 bg-red-500/5" :
+                           "border-slate-700/50 bg-slate-800/30 opacity-50";
 
-    return (
-      <div key={`${agent}-${index}`} className={`flex items-center ${compact ? "gap-1" : "gap-2"}`}>
-        <motion.div
-          initial={{ scale: 0.7, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: index * 0.06 }}
-          className={`flex flex-col items-center ${compact ? "gap-0.5" : "gap-1 sm:gap-2"}`}
-        >
-          <div className={`relative ${isCompleted || isActive ? "opacity-100" : "opacity-35"}`}>
-            <AgentAvatar agent={agent} isActive={isActive} size={size} />
-            {isCompleted && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className={`absolute ${compact ? "-bottom-0.5 -right-0.5 h-2.5 w-2.5" : "-bottom-1 -right-1 h-3.5 w-3.5"} rounded-full bg-success flex items-center justify-center`}
-              >
-                <span className={compact ? "text-[6px]" : "text-[9px]"}>✓</span>
-              </motion.div>
-            )}
-          </div>
-          <span className={`font-medium text-center truncate ${compact ? "text-[10px] max-w-[48px]" : "text-[10px] sm:text-xs"} ${isActive ? config.color : "text-muted-foreground"}`}>
-            {config.label}
-          </span>
-        </motion.div>
+  return (
+    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border ${ring} transition-all`}>
+      <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
+      <span className="text-xs font-medium text-slate-300">{meta.label}</span>
+      {statusIcon}
+      {meta.model && status !== "waiting" && (
+        <span className="text-[10px] text-slate-500 hidden md:inline">{meta.model}</span>
+      )}
+    </div>
+  );
+}
 
-        {!isLast && (
-          compact
-            ? <ChevronRight className={`h-3 w-3 flex-shrink-0 ${completedAgents.includes(agent) ? "text-primary" : "text-muted-foreground/30"}`} />
-            : <ArrowRight className={`h-3 w-3 sm:h-4 sm:w-4 mx-0.5 flex-shrink-0 ${completedAgents.includes(agent) ? "text-primary" : "text-muted-foreground/30"}`} />
-        )}
-      </div>
-    );
+const AgentPipeline = ({ currentAgent, completedAgents = [], agentSequence = [] }: AgentPipelineProps) => {
+  if (!agentSequence.length) return null;
+
+  // Group agents by category for display
+  const grouped = CATEGORY_ORDER.reduce<Record<string, AgentType[]>>((acc, cat) => {
+    const inCategory = agentSequence.filter(a => (AGENT_META[a]?.category || "Other") === cat);
+    if (inCategory.length) acc[cat] = inCategory;
+    return acc;
+  }, {});
+
+  const getStatus = (agent: AgentType) => {
+    if (completedAgents.includes(agent)) return "done" as const;
+    if (currentAgent === agent) return "running" as const;
+    return "waiting" as const;
   };
 
   return (
-    <>
-      {/* Desktop */}
-      <div className="hidden sm:flex items-center justify-center flex-wrap gap-1 py-4 sm:py-6">
-        {pipeline.map((agent, i) => renderAgent(agent, i, i === pipeline.length - 1, false))}
-      </div>
-
-      {/* Mobile - wrapped */}
-      <div className="sm:hidden py-3">
-        <div className="flex items-center gap-1 flex-wrap justify-center">
-          {pipeline.map((agent, i) => renderAgent(agent, i, i === pipeline.length - 1, true))}
+    <div className="space-y-2">
+      {Object.entries(grouped).map(([category, agents]) => (
+        <div key={category}>
+          <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-widest mb-1 px-0.5">{category}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {agents.map(agent => (
+              <AgentBadge key={agent} agent={agent} status={getStatus(agent)} />
+            ))}
+          </div>
         </div>
-      </div>
-    </>
+      ))}
+    </div>
   );
 };
 

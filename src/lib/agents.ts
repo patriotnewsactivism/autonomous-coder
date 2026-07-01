@@ -2,17 +2,25 @@
 export type AgentType =
   | "orchestrator"
   | "strategist"
+  | "researcher"
+  | "architect"
   | "database"
   | "api"
   | "ui"
   | "builder"
+  | "mobile"
   | "testing"
   | "security"
   | "performance"
+  | "seo"
+  | "a11y"
+  | "docs"
   | "reviewer"
   | "fixer"
   | "refiner"
-  | "deployer";
+  | "optimizer"
+  | "deployer"
+  | "analyst";
 
 export interface AgentTask {
   id: number;
