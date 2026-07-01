@@ -59,3 +59,4 @@ export const insertEmployeeTaskSchema = createInsertSchema(employeeTasks).omit({
 
 export type InsertEmployeeTask = z.infer<typeof insertEmployeeTaskSchema>;
 export type EmployeeTask = typeof employeeTasks.$inferSelect;
+
