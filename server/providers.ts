@@ -271,12 +271,13 @@ function buildOpenAIRequest(
   systemPrompt: string,
   userMessage: string,
   maxTokens: number,
-  stream: boolean
+  stream: boolean,
+  apiKeyOverride?: string
 ) {
   return {
     url: getEndpoint(provider.name),
     headers: {
-      Authorization: `Bearer ${getApiKey(provider.name)}`,
+      Authorization: `Bearer ${apiKeyOverride || getApiKey(provider.name)}`,
       "Content-Type": "application/json",
     },
     body: {
@@ -297,9 +298,10 @@ function buildGeminiRequest(
   systemPrompt: string,
   userMessage: string,
   maxTokens: number,
-  stream: boolean
+  stream: boolean,
+  apiKeyOverride?: string
 ) {
-  const apiKey = getApiKey(provider.name);
+  const apiKey = apiKeyOverride || getApiKey(provider.name);
   const action = stream ? "streamGenerateContent?alt=sse" : "generateContent";
   return {
     url: `${getEndpoint(provider.name)}/models/${model}:${action}&key=${apiKey}`,
@@ -318,13 +320,14 @@ function buildCohereRequest(
   systemPrompt: string,
   userMessage: string,
   maxTokens: number,
-  stream: boolean
+  stream: boolean,
+  apiKeyOverride?: string
 ) {
   // Cohere v2 API uses OpenAI-compatible messages array format
   return {
     url: getEndpoint(provider.name),
     headers: {
-      Authorization: `Bearer ${getApiKey(provider.name)}`,
+      Authorization: `Bearer ${apiKeyOverride || getApiKey(provider.name)}`,
       "Content-Type": "application/json",
       "X-Client-Name": "autonomous-code-wizard",
     },
@@ -345,19 +348,20 @@ export function buildRequest(
   systemPrompt: string,
   userMessage: string,
   maxTokens: number,
-  stream: boolean
+  stream: boolean,
+  apiKeyOverride?: string
 ) {
   const provider = findProviderForModel(modelId);
   if (!provider) throw new Error(`Unknown model: ${modelId}`);
 
   if (provider.name === "gemini") {
-    return buildGeminiRequest(provider, modelId, systemPrompt, userMessage, maxTokens, stream);
+    return buildGeminiRequest(provider, modelId, systemPrompt, userMessage, maxTokens, stream, apiKeyOverride);
   }
   if (provider.name === "cohere") {
-    return buildCohereRequest(provider, modelId, systemPrompt, userMessage, maxTokens, stream);
+    return buildCohereRequest(provider, modelId, systemPrompt, userMessage, maxTokens, stream, apiKeyOverride);
   }
   // OpenAI-compatible: deepseek, kilo, groq, cerebras, github
-  return buildOpenAIRequest(provider, modelId, systemPrompt, userMessage, maxTokens, stream);
+  return buildOpenAIRequest(provider, modelId, systemPrompt, userMessage, maxTokens, stream, apiKeyOverride);
 }
 
 // ── Response parsers ─────────────────────────────────────────────────────────
@@ -432,3 +436,4 @@ export function parseStreamChunk(providerName: ProviderName, line: string): stri
     return data.choices?.[0]?.delta?.content || null;
   } catch { return null; }
 }
+
