@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import React, { Suspense } from "react";
 
 // Lazy load pages so a crash in one doesn't kill the others
+const LandingPage = React.lazy(() => import("./pages/LandingPage"));
 const VibeCoding = React.lazy(() => import("./pages/VibeCoding"));
 const Superagent = React.lazy(() => import("./pages/Superagent"));
 const SharedProject = React.lazy(() => import("./pages/SharedProject"));
@@ -47,7 +48,13 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Navigate to="/vibe" replace />} />
+          <Route path="/" element={
+            <PageErrorBoundary name="LandingPage">
+              <Suspense fallback={<div style={{ background: "#0a0a0a", minHeight: "100vh" }} />}>
+                <LandingPage />
+              </Suspense>
+            </PageErrorBoundary>
+          } />
           <Route path="/vibe" element={
             <PageErrorBoundary name="VibeCoding">
               <Suspense fallback={<div style={{ background: "#0a0a0a", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#7c3aed", fontFamily: "monospace" }}>Loading VibeCoding...</div>}>
