@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import Header from "@/components/Header";
 import VibeInput, { BuildMode, ProjectType } from "@/components/agents/VibeInput";
+import AgentSelector, { AgentPreset, PRESETS } from "@/components/agents/AgentSelector";
 import CompactInput from "@/components/agents/CompactInput";
 import AgentPipeline from "@/components/agents/AgentPipeline";
 import AgentActivityFeed from "@/components/agents/AgentActivityFeed";
@@ -184,6 +185,8 @@ const VibeCoding = () => {
   const [currentAgent, setCurrentAgent] = useState<AgentType | undefined>();
   const [completedAgents, setCompletedAgents] = useState<AgentType[]>([]);
   const [agentSequence, setAgentSequence] = useState<AgentType[]>([]);
+  const [agentPreset, setAgentPreset] = useState<AgentPreset>("auto");
+  const [customAgentList, setCustomAgentList] = useState<AgentType[]>([]);
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [tasks, setTasks] = useState<AgentTask[]>([]);
   const [currentTaskId, setCurrentTaskId] = useState<number | undefined>();
@@ -357,9 +360,17 @@ const VibeCoding = () => {
         orchResult = await runOrchestrator(goal, orchStream);
         tick();
         finalizeStreamingMessage("orchestrator", orchResult.strategy);
+
+        // ── Preset override: if user picked a specific pipeline, use it ──
+        if (agentPreset !== "auto" && agentPreset !== "custom" && (PRESETS[agentPreset]?.agents?.length ?? 0) > 0) {
+          orchResult = { ...orchResult, agentSequence: PRESETS[agentPreset].agents as AgentType[] };
+        } else if (agentPreset === "custom" && customAgentList.length > 0) {
+          orchResult = { ...orchResult, agentSequence: customAgentList };
+        }
+
         setAgentSequence(orchResult.agentSequence);
         setCompletedAgents(prev => [...prev, "orchestrator"]);
-        addMessage("orchestrator", "result", `Strategy: ${orchResult.agentSequence.join(" → ")}`, { tokenCount: orchResult.tokenCount });
+        addMessage("orchestrator", "result", `Pipeline: ${orchResult.agentSequence.join(" → ")}`, { tokenCount: orchResult.tokenCount });
         if (stopRef.current) return;
       } catch (e: any) {
         addMessage("orchestrator", "error", e.message);
@@ -682,6 +693,16 @@ const VibeCoding = () => {
                 </div>
               )}
             </div>
+
+            {/* Agent Pipeline Selector */}
+            <AgentSelector
+              value={agentPreset}
+              customAgents={customAgentList}
+              onChange={(preset, agents) => {
+                setAgentPreset(preset);
+                setCustomAgentList(agents as AgentType[]);
+              }}
+            />
 
             {/* Import Repo button */}
             <button
