@@ -307,7 +307,7 @@ function buildGeminiRequest(
   const apiKey = apiKeyOverride || getApiKey(provider.name);
   const action = stream ? "streamGenerateContent?alt=sse" : "generateContent";
   return {
-    url: `${getEndpoint(provider.name)}/models/${model}:${action}&key=${apiKey}`,
+    url: `${getEndpoint(provider.name)}/models/${model}:${action}${action.includes("?") ? "&" : "?"}key=${apiKey}`,
     headers: { "Content-Type": "application/json" },
     body: {
       system_instruction: { parts: [{ text: systemPrompt }] },
