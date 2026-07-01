@@ -397,7 +397,13 @@ export async function runStrategist(
   const r = onToken
     ? await runAgentStreaming<StrategyResult>("strategist", goal, context, onToken)
     : await runAgentRaw<StrategyResult>("strategist", goal, context);
-  return { ...r, approach: r.approach || r.analysis || r.architecture || "" };
+  return {
+    ...r,
+    approach: r.approach || r.analysis || r.architecture || "",
+    tasks: Array.isArray(r.tasks) ? r.tasks : [],
+    techStack: Array.isArray(r.techStack) ? r.techStack : [],
+    estimatedComplexity: r.estimatedComplexity || "moderate",
+  };
 }
 
 export async function runBuilder(
@@ -413,9 +419,15 @@ export async function runBuilder(
     seedFiles: seedFiles.map(f => ({ path: f.path, content: f.content.slice(0, 8000) })),
     memory: buildBuildMemory([]),
   };
-  return onToken
-    ? runAgentStreaming<BuildResult>("builder", goal, context, onToken)
-    : runAgentRaw<BuildResult>("builder", goal, context);
+  const r = onToken
+    ? await runAgentStreaming<BuildResult>("builder", goal, context, onToken)
+    : await runAgentRaw<BuildResult>("builder", goal, context);
+  return {
+    ...r,
+    files: Array.isArray(r.files) ? r.files : [],
+    nextSteps: Array.isArray(r.nextSteps) ? r.nextSteps : [],
+    explanation: r.explanation || "",
+  };
 }
 
 export async function runSpecialist(

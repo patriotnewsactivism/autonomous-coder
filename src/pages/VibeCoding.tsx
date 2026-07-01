@@ -391,9 +391,10 @@ const VibeCoding = () => {
         stratResult = await runStrategist(goal, orchResult, stratStream);
         tick();
         finalizeStreamingMessage("strategist", stratResult.approach);
-        setTasks(stratResult.tasks.map((t, i) => ({ ...t, id: i + 1, status: "pending" as const })));
+        const safeTasks = Array.isArray(stratResult.tasks) ? stratResult.tasks : [];
+        setTasks(safeTasks.map((t, i) => ({ ...t, id: i + 1, status: "pending" as const })));
         setCompletedAgents(prev => [...prev, "strategist"]);
-        addMessage("strategist", "result", `${stratResult.tasks.length} tasks planned`, { tokenCount: stratResult.tokenCount });
+        addMessage("strategist", "result", `${safeTasks.length} tasks planned`, { tokenCount: stratResult.tokenCount });
         if (stopRef.current) return;
       } catch (e: any) {
         addMessage("strategist", "error", e.message);
@@ -451,6 +452,7 @@ const VibeCoding = () => {
         try {
           buildResult = await runBuilder(goal, orchResult, stratResult, seedFiles, builderStream);
         tick();
+        buildResult.files = Array.isArray(buildResult.files) ? buildResult.files : [];
         finalizeStreamingMessage("builder", `Generated ${buildResult.files.length} files`);
         if (buildResult.files.length > 0) {
           allFiles.push(...buildResult.files);
@@ -467,6 +469,7 @@ const VibeCoding = () => {
       } // end else (non-epic)
 
       // Merge spawn files if epic mode produced them
+      buildResult.files = Array.isArray(buildResult.files) ? buildResult.files : [];
       if (buildResult.files.length > 0) {
         buildResult.files.forEach(f => {
           const idx = allFiles.findIndex(x => x.path === f.path);
