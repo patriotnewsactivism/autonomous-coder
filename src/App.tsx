@@ -1,31 +1,9 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import VibeCoding from "./pages/VibeCoding";
-import Superagent from "./pages/Superagent";
-import SharedProject from "./pages/SharedProject";
-import NotFound from "./pages/NotFound";
-
-const queryClient = new QueryClient();
-
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Navigate to="/vibe" replace />} />
-          <Route path="/vibe" element={<VibeCoding />} />
-          <Route path="/superagent" element={<Superagent />} />
-          <Route path="/project/:id" element={<SharedProject />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <div style={{ padding: 40, background: "#111", minHeight: "100vh", color: "#fff", fontFamily: "monospace" }}>
+    <h1 style={{ color: "#7c3aed" }}>⚡ Autonomous Coder — Bare App Test</h1>
+    <p>If you see this, React is mounting correctly.</p>
+    <p>The crash is in one of the providers or page components.</p>
+  </div>
 );
 
 export default App;
