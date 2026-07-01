@@ -14,6 +14,7 @@ import {
   getFreeUnconfiguredProviders, getProvidersStatus,
   calcCost as _calcCost,
 } from "./providers.js";
+import type { ByokProvider } from "./apiKeys.js";
 
 const DEFAULT_MODEL = getDefaultModel();
 
@@ -48,6 +49,7 @@ export async function callAI(
   userMessage: string,
   model?: string,
   triedModels: Set<string> = new Set(),
+  userApiKeys?: Partial<Record<ByokProvider, string>>,
 ): Promise<AIUsage> {
   const deployment = model || DEFAULT_MODEL;
   if (!deployment) throw new Error(buildNoProvidersError());
@@ -58,13 +60,14 @@ export async function callAI(
   }
   triedModels.add(deployment);
 
-  const req = buildRequest(deployment, systemPrompt, userMessage, 4096, false);
   const providerName = getProviderForModel(deployment);
+  const keyOverride = providerName && userApiKeys ? userApiKeys[providerName as ByokProvider] : undefined;
+  const req = buildRequest(deployment, systemPrompt, userMessage, 4096, false, keyOverride);
 
   if (!providerName) {
     const fallback = getFallbackModel(deployment);
     if (fallback && !triedModels.has(fallback)) {
-      return callAI(systemPrompt, userMessage, fallback, triedModels);
+      return callAI(systemPrompt, userMessage, fallback, triedModels, userApiKeys);
     }
     throw new Error(buildNoProvidersError());
   }
@@ -79,7 +82,7 @@ export async function callAI(
     const errorText = await response.text();
     const fallback = getFallbackModel(deployment);
     if (fallback && !triedModels.has(fallback)) {
-      return callAI(systemPrompt, userMessage, fallback, triedModels);
+      return callAI(systemPrompt, userMessage, fallback, triedModels, userApiKeys);
     }
     if (response.status === 429) throw new Error("Rate limit exceeded. Please try again.");
     if (response.status === 401) throw new Error(`${deployment}: Invalid API key.\n\n${buildNoProvidersError()}`);
@@ -92,7 +95,7 @@ export async function callAI(
   if (!parsed.content) {
     const fallback = getFallbackModel(deployment);
     if (fallback && !triedModels.has(fallback)) {
-      return callAI(systemPrompt, userMessage, fallback, triedModels);
+      return callAI(systemPrompt, userMessage, fallback, triedModels, userApiKeys);
     }
     throw new Error(`No response from AI (${deployment}). All providers exhausted.`);
   }
@@ -113,6 +116,7 @@ export async function callAIStream(
   onToken: (token: string) => void,
   model?: string,
   triedModels: Set<string> = new Set(),
+  userApiKeys?: Partial<Record<ByokProvider, string>>,
 ): Promise<AIUsage> {
   const deployment = model || DEFAULT_MODEL;
   if (!deployment) throw new Error(buildNoProvidersError());
@@ -123,13 +127,14 @@ export async function callAIStream(
   }
   triedModels.add(deployment);
 
-  const req = buildRequest(deployment, systemPrompt, userMessage, 4096, true);
   const providerName = getProviderForModel(deployment);
+  const keyOverride = providerName && userApiKeys ? userApiKeys[providerName as ByokProvider] : undefined;
+  const req = buildRequest(deployment, systemPrompt, userMessage, 4096, true, keyOverride);
 
   if (!providerName) {
     const fallback = getFallbackModel(deployment);
     if (fallback && !triedModels.has(fallback)) {
-      return callAIStream(systemPrompt, userMessage, onToken, fallback, triedModels);
+      return callAIStream(systemPrompt, userMessage, onToken, fallback, triedModels, userApiKeys);
     }
     throw new Error(buildNoProvidersError());
   }
@@ -143,7 +148,7 @@ export async function callAIStream(
   if (!response.ok) {
     const fallback = getFallbackModel(deployment);
     if (fallback && !triedModels.has(fallback)) {
-      return callAIStream(systemPrompt, userMessage, onToken, fallback, triedModels);
+      return callAIStream(systemPrompt, userMessage, onToken, fallback, triedModels, userApiKeys);
     }
     if (response.status === 429) throw new Error("Rate limit exceeded. Please try again.");
     if (response.status === 401) throw new Error(`${deployment}: Invalid API key.\n\n${buildNoProvidersError()}`);
@@ -193,3 +198,4 @@ export function parseJsonResponse(content: string): any {
   }
   return parsed;
 }
+
