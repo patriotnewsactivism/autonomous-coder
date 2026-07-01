@@ -104,8 +104,11 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
     apiKeyEnv: ["CEREBRAS_API_KEY"],
     endpoint: () => process.env.CEREBRAS_ENDPOINT || "https://api.cerebras.ai/v1/chat/completions",
     models: [
-      { id: "llama-3.3-70b", label: "Llama 3.3 70B (Cerebras)", contextWindow: 128000, pricing: [0, 0] },
+      // 8B first: Cerebras free-tier keys often only have access to this model,
+      // not the 70B one — putting 70B first caused hard 404 "no access" failures
+      // whenever it was the only active provider in the fallback chain.
       { id: "llama3.1-8b-8192", label: "Llama 3.1 8B (Cerebras)", contextWindow: 8192, pricing: [0, 0] },
+      { id: "llama-3.3-70b", label: "Llama 3.3 70B (Cerebras, requires elevated access)", contextWindow: 128000, pricing: [0, 0] },
     ],
     isFree: true,
   },
