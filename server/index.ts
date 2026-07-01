@@ -9,6 +9,7 @@ import { setupCronJobs } from "./cronJobs";
 import { startEmployeeWorker } from "./employeeWorker";
 
 const app = express();
+app.set("trust proxy", 1); // Render sits behind a proxy; without this, express-rate-limit throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR on every request
 
 // ── CORS ───────────────────────────────────────────────────────────────────────
 const allowedOrigins = [
