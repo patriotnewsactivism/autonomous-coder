@@ -7,6 +7,7 @@ import {
   isProviderActive, type ProviderName,
   getProvidersStatus, getFreeUnconfiguredProviders,
 } from "./providers";
+import { listMyKeys, saveKey, deleteKey, hasAnyKey } from "./apiKeys";
 
 interface Issue {
   id: string;
@@ -249,6 +250,49 @@ function sendSSE(res: any, event: string, data: any) {
 }
 
 export async function registerRoutes(app: Express): Promise<void> {
+
+  // ─── BYOK: per-user AI provider API keys ──────────────────────────────────
+  // Ported from codeforge-v2. Any user (identified by userId, e.g. a Supabase
+  // auth UID or a client-generated UUID) can supply their own provider key.
+  app.get("/api/keys/:userId", async (req, res) => {
+    try {
+      const keys = await listMyKeys(req.params.userId);
+      res.json(keys);
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+    }
+  });
+
+  app.get("/api/keys/:userId/has-any", async (req, res) => {
+    try {
+      res.json({ hasKey: await hasAnyKey(req.params.userId) });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+    }
+  });
+
+  app.post("/api/keys", async (req, res) => {
+    try {
+      const { userId, provider, apiKey } = req.body;
+      if (!userId || !provider || !apiKey) {
+        return res.status(400).json({ error: "userId, provider, and apiKey are required" });
+      }
+      const result = await saveKey(userId, provider, apiKey);
+      if (!result.success) return res.status(400).json(result);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+    }
+  });
+
+  app.delete("/api/keys/:userId/:provider", async (req, res) => {
+    try {
+      const result = await deleteKey(req.params.userId, req.params.provider);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+    }
+  });
 
   app.post("/api/analyze-code", async (req, res) => {
     try {
@@ -1059,3 +1103,4 @@ export async function registerRoutes(app: Express): Promise<void> {
 
 
 }
+
