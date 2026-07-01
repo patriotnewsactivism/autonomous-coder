@@ -80,6 +80,14 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString(), env: process.env.NODE_ENV });
 });
 
+app.post("/api/client-error", (req, res) => {
+  const { error, stack, componentStack } = req.body || {};
+  console.error("🔴 CLIENT CRASH:", error);
+  if (stack) console.error(stack);
+  if (componentStack) console.error("Component stack:", componentStack?.slice(0, 500));
+  res.json({ logged: true });
+});
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 await registerRoutes(app);
 registerParallelRoutes(app);
