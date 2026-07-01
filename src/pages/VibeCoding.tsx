@@ -211,6 +211,10 @@ const VibeCoding = () => {
   const stopRef = useRef(false);
   const seedFilesRef = useRef<GeneratedFile[]>([]);
   const seedRepoRef = useRef<string>("");
+  const backendAutosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [autosaveProjectId, setAutosaveProjectId] = useState<number | null>(() => {
+    try { return parseInt(localStorage.getItem("cf_autosave_project_id") || "") || null; } catch { return null; }
+  });
 
   useEffect(() => {
     fetchModels().then((data) => {
@@ -232,7 +236,11 @@ const VibeCoding = () => {
     return () => { window.removeEventListener("storage", handler); clearInterval(interval); };
   }, []);
 
-  // ── Autosave to localStorage + backend on every file change ─────────────
+  // ── Autosave to localStorage (instant) + real backend DB (debounced) ────
+  // Runs on EVERY generatedFiles change, i.e. after every agent stage — not
+  // just at the end of a successful build. This means work is never lost if
+  // the tab closes, the build fails partway, or the browser storage is
+  // cleared/switched to another device.
   useEffect(() => {
     if (generatedFiles.length === 0) return;
     autoSave({
@@ -244,7 +252,30 @@ const VibeCoding = () => {
     });
     setAutoSaved(true);
     const t = setTimeout(() => setAutoSaved(false), 2000);
-    return () => clearTimeout(t);
+
+    // Debounced real backend persistence (survives cleared localStorage / device switch)
+    if (backendAutosaveTimer.current) clearTimeout(backendAutosaveTimer.current);
+    backendAutosaveTimer.current = setTimeout(() => {
+      fetch(`${API_BASE}/api/autosave`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          goal: currentGoal || "Untitled",
+          files: generatedFiles,
+          agentSequence,
+        }),
+      })
+        .then(r => (r.ok ? r.json() : null))
+        .then((project) => {
+          if (project?.id) {
+            setAutosaveProjectId(project.id);
+            try { localStorage.setItem("cf_autosave_project_id", String(project.id)); } catch { /* noop */ }
+          }
+        })
+        .catch(() => { /* non-critical — localStorage copy already saved above */ });
+    }, 1200);
+
+    return () => { clearTimeout(t); if (backendAutosaveTimer.current) clearTimeout(backendAutosaveTimer.current); };
   }, [generatedFiles]);
 
   // Restore autosave on mount
