@@ -5,6 +5,8 @@ import rateLimit from "express-rate-limit";
 import { registerRoutes } from "./routes";
 import { registerParallelRoutes } from "./parallelRoutes";
 import { serveStatic, log } from "./static";
+import { setupCronJobs } from "./cronJobs";
+import { startEmployeeWorker } from "./employeeWorker";
 
 const app = express();
 
@@ -106,4 +108,10 @@ const PORT = parseInt(process.env.PORT || "10000", 10);
 app.listen(PORT, "0.0.0.0", () => {
   log(`🚀 Autonomous Coder running on port ${PORT}`);
   log(`   NODE_ENV: ${process.env.NODE_ENV || "development"}`);
+
+  // ── AI Employee: recurring cron tasks + background worker daemon ──────────
+  // Previously built but never started — wiring it in now so scheduled and
+  // webhook-created employee_tasks actually get picked up and executed.
+  setupCronJobs();
+  startEmployeeWorker();
 });
