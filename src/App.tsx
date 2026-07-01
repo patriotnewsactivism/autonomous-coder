@@ -9,6 +9,7 @@ import React, { Suspense } from "react";
 const LandingPage = React.lazy(() => import("./pages/LandingPage"));
 const VibeCoding = React.lazy(() => import("./pages/VibeCoding"));
 const Superagent = React.lazy(() => import("./pages/Superagent"));
+const EmployeeDashboard = React.lazy(() => import("./pages/EmployeeDashboard"));
 const SharedProject = React.lazy(() => import("./pages/SharedProject"));
 const NotFound = React.lazy(() => import("./pages/NotFound"));
 
@@ -66,6 +67,13 @@ const App = () => (
             <PageErrorBoundary name="Superagent">
               <Suspense fallback={<div style={{ background: "#0a0a0a", minHeight: "100vh" }}>Loading...</div>}>
                 <Superagent />
+              </Suspense>
+            </PageErrorBoundary>
+          } />
+          <Route path="/employee" element={
+            <PageErrorBoundary name="EmployeeDashboard">
+              <Suspense fallback={<div style={{ background: "#0a0a0a", minHeight: "100vh" }}>Loading...</div>}>
+                <EmployeeDashboard />
               </Suspense>
             </PageErrorBoundary>
           } />
