@@ -23,6 +23,7 @@ function getModelForAgent(agentType: string, requestedModel?: string): string | 
   const hasDeepSeek = !!(env.DEEPSEEK_API_KEY);
   const hasKilo = !!(env.KILOCODE_API_KEY || env.KILO_API_KEY);
   const hasGemini = !!(env.GEMINI_API_KEY || env.GOOGLE_API_KEY);
+  const hasCohere = !!(env.COHERE_API_KEY);
 
   if (heavyRoles.includes(agentType)) {
     if (hasDeepSeek) return "deepseek-v4-pro"; // DeepSeek V4 Pro — best for deep reasoning
@@ -32,6 +33,9 @@ function getModelForAgent(agentType: string, requestedModel?: string): string | 
   }
 
   if (speedRoles.includes(agentType)) {
+    // North Mini Code: 3B active params, trained specifically for agentic coding tasks
+    if (hasCohere && ["builder", "fixer", "api", "ui", "database"].includes(agentType))
+      return "north-mini-code-1-0";
     if (hasDeepSeek) return "deepseek-v4-flash"; // Fast + cheap for code gen
     if (hasKilo) return "kilo/auto";
     if (hasGemini) return "gemini-2.0-flash";

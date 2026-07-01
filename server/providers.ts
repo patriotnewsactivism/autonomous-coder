@@ -128,10 +128,11 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
     name: "cohere",
     label: "Cohere (Free Trial)",
     apiKeyEnv: ["COHERE_API_KEY"],
-    endpoint: "https://api.cohere.ai/v1/chat",
+    endpoint: "https://api.cohere.com/v2/chat",
     models: [
-      { id: "command-r-plus", label: "Command R+ (Cohere)", contextWindow: 128000, pricing: [0, 0] },
-      { id: "command-a", label: "Command A (Cohere)", contextWindow: 256000, pricing: [0, 0] },
+      { id: "north-mini-code-1-0", label: "North Mini Code 1.0 (Cohere) 🧠", contextWindow: 256000, pricing: [0, 0] },
+      { id: "command-a-03-2025", label: "Command A (Cohere)", contextWindow: 256000, pricing: [0, 0] },
+      { id: "command-r-plus-08-2024", label: "Command R+ (Cohere)", contextWindow: 128000, pricing: [0, 0] },
     ],
     isFree: true,
   },
@@ -319,16 +320,20 @@ function buildCohereRequest(
   maxTokens: number,
   stream: boolean
 ) {
+  // Cohere v2 API uses OpenAI-compatible messages array format
   return {
     url: getEndpoint(provider.name),
     headers: {
       Authorization: `Bearer ${getApiKey(provider.name)}`,
       "Content-Type": "application/json",
+      "X-Client-Name": "autonomous-code-wizard",
     },
     body: {
       model,
-      preamble: systemPrompt,
-      message: userMessage,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
       max_tokens: maxTokens,
       stream,
     },
@@ -373,11 +378,17 @@ export function parseResponse(
     };
   }
   if (providerName === "cohere") {
+    // v2 API: OpenAI-compatible response shape
+    const content = data.message?.content?.[0]?.text
+      || data.choices?.[0]?.message?.content
+      || data.text
+      || "";
+    const usage = data.usage || {};
     return {
-      content: data.text || "",
-      totalTokens: data.meta?.tokens?.input_tokens + data.meta?.tokens?.output_tokens || 0,
-      promptTokens: data.meta?.tokens?.input_tokens || 0,
-      completionTokens: data.meta?.tokens?.output_tokens || 0,
+      content,
+      totalTokens: (usage.billed_units?.input_tokens || 0) + (usage.billed_units?.output_tokens || 0),
+      promptTokens: usage.billed_units?.input_tokens || usage.tokens?.input_tokens || 0,
+      completionTokens: usage.billed_units?.output_tokens || usage.tokens?.output_tokens || 0,
     };
   }
   // OpenAI-compatible (deepseek, kilo, groq, cerebras, github)
@@ -400,9 +411,16 @@ export function parseStreamChunk(providerName: ProviderName, line: string): stri
     } catch { return null; }
   }
   if (providerName === "cohere") {
+    // v2 SSE uses OpenAI-compatible data: prefix with delta content
+    if (!line.startsWith("data: ")) return null;
+    const payload = line.slice(6).trim();
+    if (payload === "[DONE]") return null;
     try {
-      const data = JSON.parse(line);
-      return data.event_type === "text-generation" ? data.text : null;
+      const data = JSON.parse(payload);
+      // v2 delta format
+      return data.delta?.message?.content?.text
+        || data.choices?.[0]?.delta?.content
+        || null;
     } catch { return null; }
   }
   // OpenAI-compatible (deepseek, kilo, groq, cerebras, github)
