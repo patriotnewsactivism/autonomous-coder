@@ -525,7 +525,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
       const tree = await treeResponse.json();
       const codeExts = [".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs", ".java", ".css", ".json", ".md"];
-      const files = tree.tree?.filter((f: any) => f.type === "blob" && codeExts.some((ext) => f.path.endsWith(ext))).slice(0, 80) || [];
+      const files = tree.tree?.filter((f: any) => f.type === "blob" && codeExts.some((ext) => f.path.endsWith(ext))).slice(0, 300) || [];
       res.json(files);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch repository files" });
@@ -660,8 +660,8 @@ export async function registerRoutes(app: Express): Promise<void> {
       };
       allFiles.sort((a: any, b: any) => priority(a.path) - priority(b.path));
 
-      // Fetch content for up to 40 files (covers most repos for AI context)
-      const filesToFetch = allFiles.slice(0, 80);
+      // Fetch content for up to 300 files (covers large repos for AI context)
+      const filesToFetch = allFiles.slice(0, 300);
       const fileResults = await Promise.allSettled(
         filesToFetch.map(async (f: any) => {
           const contentRes = await fetch(
@@ -670,8 +670,8 @@ export async function registerRoutes(app: Express): Promise<void> {
           );
           if (!contentRes.ok) return null;
           const fileData = await contentRes.json();
-          // Skip files > 100KB (likely generated/binary)
-          if (fileData.size > 200000) return null;
+          // Skip files > 400KB (likely generated/binary)
+          if (fileData.size > 400000) return null;
           const fileContent = Buffer.from(fileData.content, "base64").toString("utf-8");
           return { path: f.path, content: fileContent, size: fileData.size };
         })
@@ -741,7 +741,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         codeExts.some((ext) => f.path.endsWith(ext))
       );
 
-      const filesToFetch = allFiles.slice(0, 80);
+      const filesToFetch = allFiles.slice(0, 300);
       const fileResults = await Promise.allSettled(
         filesToFetch.map(async (f: any) => {
           const r = await fetch(
