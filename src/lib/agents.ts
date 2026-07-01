@@ -377,8 +377,15 @@ export async function runOrchestrator(
   const r = onToken
     ? await runAgentStreaming<OrchestratorResult>("orchestrator", goal, {}, onToken)
     : await runAgentRaw<OrchestratorResult>("orchestrator", goal, {});
-  // Ensure strategy field is populated
-  return { ...r, strategy: r.strategy || r.approach || r.understanding || "" };
+  // Guard all required fields to prevent .join() crashes
+  const seq = Array.isArray(r.agentSequence) && r.agentSequence.length > 0
+    ? r.agentSequence
+    : ["strategist", "builder", "reviewer", "fixer"];
+  return {
+    ...r,
+    strategy: r.strategy || r.approach || r.understanding || "",
+    agentSequence: seq,
+  };
 }
 
 export async function runStrategist(

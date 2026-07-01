@@ -368,6 +368,11 @@ const VibeCoding = () => {
           orchResult = { ...orchResult, agentSequence: customAgentList };
         }
 
+        // Safety guard — ensure agentSequence is always a valid array
+        if (!Array.isArray(orchResult.agentSequence) || orchResult.agentSequence.length === 0) {
+          orchResult = { ...orchResult, agentSequence: ["strategist", "builder", "reviewer", "fixer"] as AgentType[] };
+        }
+
         setAgentSequence(orchResult.agentSequence);
         setCompletedAgents(prev => [...prev, "orchestrator"]);
         addMessage("orchestrator", "result", `Pipeline: ${orchResult.agentSequence.join(" → ")}`, { tokenCount: orchResult.tokenCount });
