@@ -1,4 +1,8 @@
 import type { Express } from "express";
+<<<<<<< Updated upstream
+=======
+import { connectToGitHub } from "../src/lib/github";
+>>>>>>> Stashed changes
 import { storage } from "./storage";
 import {
   buildRequest, parseResponse, parseStreamChunk,
