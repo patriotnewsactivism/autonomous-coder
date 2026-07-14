@@ -161,7 +161,6 @@ const Index = () => {
     ]);
 
     try {
-<<<<<<< Updated upstream
       const language = detectLanguage(combinedCode);
       const result = await analyzeCode(combinedCode, language);
 
@@ -211,25 +210,6 @@ const Index = () => {
       ]);
 
       toast.error(error instanceof Error ? error.message : "Analysis failed. Please try again.");
-=======
-      const response = await fetch("/api/github/clone", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ repoUrl: url }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to connect to GitHub");
-      }
-
-      const data = await response.json();
-      setCode(data.result);
-      toast.success("Connected to GitHub repository!");
-    } catch (error) {
-      toast.error("Failed to connect to GitHub repository.");
->>>>>>> Stashed changes
     } finally {
       setIsAnalyzing(false);
     }
