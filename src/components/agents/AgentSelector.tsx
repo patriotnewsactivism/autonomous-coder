@@ -84,7 +84,7 @@ export default function AgentSelector({ value, customAgents, onChange }: AgentSe
         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground hover:bg-muted/60 transition-colors"
       >
         <PresetIcon className="h-3.5 w-3.5 text-violet-400" />
-        <span className="hidden sm:inline font-medium text-foreground">{currentPreset.label}</span>
+        <span className="font-medium text-foreground">{currentPreset.label}</span>
         {activePreset === "custom" && selected.size > 0 && (
           <span className="text-[10px] bg-violet-500/20 text-violet-300 rounded-full px-1.5 py-0.5">{selected.size}</span>
         )}

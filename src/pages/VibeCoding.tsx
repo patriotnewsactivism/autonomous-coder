@@ -3,7 +3,7 @@ import {
   Sparkles, Activity, Brain, Github, History, Clock,
   Coins, RotateCcw, ChevronDown, ChevronLeft, DollarSign, Save,
   FolderGit2, AlertTriangle, Rocket, GitBranch, CheckCircle2,
-  XCircle, Upload, RefreshCw, Eye, Terminal, Zap, Play,
+  XCircle, Upload, RefreshCw, Eye, Terminal, Zap, Play, Code2,
   Info, ChevronUp, Minimize2, Maximize2
 } from "lucide-react";
 import Header from "@/components/Header";
@@ -709,16 +709,17 @@ const VibeCoding = () => {
         {/* ── Top bar ── */}
         <div className="flex-shrink-0 border-b border-border/40 bg-background/95 backdrop-blur px-3 py-2">
 
-          {/* Row 1: model + import + input + build button */}
+          {/* Row 1: labeled action buttons */}
           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap">
-            {/* Model selector — icon only on mobile */}
+            {/* Model selector — always shows label */}
             <div className="relative flex-shrink-0">
               <button
                 onClick={() => setShowModelMenu(!showModelMenu)}
-                className="flex items-center gap-1 px-2 py-2 sm:py-1.5 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground hover:bg-muted/60"
+                className="flex items-center gap-1.5 px-2.5 py-2 sm:py-1.5 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground hover:bg-muted/60"
+                title="Select AI model"
               >
                 <Brain className="h-3.5 w-3.5 text-purple-400" />
-                <span className="hidden sm:inline max-w-[100px] truncate">{selectedModel || "Model"}</span>
+                <span className="max-w-[80px] sm:max-w-[100px] truncate">{selectedModel || "Model"}</span>
                 <ChevronDown className="h-3 w-3" />
               </button>
               {showModelMenu && (
@@ -743,13 +744,13 @@ const VibeCoding = () => {
               }}
             />
 
-            {/* Import Repo button */}
+            {/* Import Repo button — always shows label */}
             <button
               onClick={() => setShowImportDialog(true)}
-              className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-2 sm:py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-colors text-xs font-medium"
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-colors text-xs font-medium"
             >
               <FolderGit2 className="h-3.5 w-3.5" />
-              <span className="hidden md:inline">Import Repo</span>
+              <span>Import</span>
             </button>
 
             {/* Main input — inline on desktop only */}
@@ -757,12 +758,13 @@ const VibeCoding = () => {
               <CompactInput onSubmit={runAutonomousAgents} isRunning={isRunning} onStop={handleStop} initialValue={importPrompt} onInitialValueConsumed={() => setImportPrompt("")} />
             </div>
 
-            {/* Activity panel toggle (mobile) */}
+            {/* Activity panel toggle (mobile) — always shows label */}
             <button
               onClick={() => setRightPanelOpen(v => !v)}
-              className="md:hidden flex-shrink-0 flex items-center gap-1 px-2 py-2 sm:py-1.5 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground hover:bg-muted/60"
+              className="md:hidden flex-shrink-0 flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground hover:bg-muted/60"
             >
               <Activity className="h-3.5 w-3.5" />
+              <span>Activity</span>
               {messages.length > 0 && <span className="text-[10px] bg-primary/20 text-primary rounded-full px-1">{messages.length}</span>}
             </button>
           </div>
@@ -822,6 +824,109 @@ const VibeCoding = () => {
 
           {/* LEFT / MAIN: Preview + Code + Logs */}
           <div className="flex flex-col flex-1 min-w-0 border-r border-border/40">
+
+            {/* ── Welcome / Onboarding state ── */}
+            {!isRunning && generatedFiles.length === 0 && messages.length === 0 ? (
+              <div className="flex-1 overflow-auto">
+                <div className="flex flex-col items-center justify-center min-h-full px-6 py-12">
+                  {/* Hero badge */}
+                  <div className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-4 py-2 mb-6">
+                    <Zap className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium text-primary">21 AI Agents Ready</span>
+                  </div>
+
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground text-center mb-3 leading-tight">
+                    What do you want to build?
+                  </h2>
+                  <p className="text-sm text-muted-foreground text-center max-w-md mb-8 leading-relaxed">
+                    Describe your project or import an existing repo. Our agents will analyze, architect, build, test, and deploy — all autonomously.
+                  </p>
+
+                  {/* Quick-start actions */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg mb-10">
+                    <button
+                      onClick={() => setShowImportDialog(true)}
+                      className="flex items-center gap-3 p-4 rounded-xl border border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 transition-all text-left group"
+                    >
+                      <div className="flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 border border-primary/30 group-hover:bg-primary/20">
+                        <FolderGit2 className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-foreground">Import a Repo</div>
+                        <div className="text-xs text-muted-foreground">Analyze, debug, or upgrade an existing GitHub repository</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        // Focus the compact input
+                        const textarea = document.querySelector('textarea[placeholder]') as HTMLTextAreaElement;
+                        if (textarea) textarea.focus();
+                      }}
+                      className="flex items-center gap-3 p-4 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 hover:border-border transition-all text-left group"
+                    >
+                      <div className="flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-lg bg-violet-500/10 border border-violet-500/30 group-hover:bg-violet-500/20">
+                        <Sparkles className="h-5 w-5 text-violet-400" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-foreground">Build from Scratch</div>
+                        <div className="text-xs text-muted-foreground">Describe your idea — agents architect and build it end to end</div>
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* How it works */}
+                  <div className="w-full max-w-lg">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4 text-center">How it works</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {[
+                        { step: "1", icon: Brain, title: "Orchestrate", desc: "AI plans which agents to deploy" },
+                        { step: "2", icon: Code2, title: "Build", desc: "Specialized agents write & review code" },
+                        { step: "3", icon: Eye, title: "Preview", desc: "Watch your app build in a live sandbox" },
+                      ].map(({ step, icon: StepIcon, title, desc }) => (
+                        <div key={step} className="flex flex-col items-center text-center p-3 rounded-lg bg-muted/20 border border-border/30">
+                          <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 border border-primary/20 text-primary font-bold text-sm mb-2">
+                            {step}
+                          </div>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <StepIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="text-sm font-medium text-foreground">{title}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{desc}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Quick-start templates */}
+                  <div className="w-full max-w-lg mt-8">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 text-center">Quick start ideas</p>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {[
+                        "Build a SaaS landing page",
+                        "Create a REST API with auth",
+                        "Build a React dashboard",
+                        "Fix bugs in my repo",
+                        "Add unit tests",
+                      ].map(prompt => (
+                        <button
+                          key={prompt}
+                          onClick={() => {
+                            setImportPrompt(prompt);
+                            const textarea = document.querySelector('textarea[placeholder]') as HTMLTextAreaElement;
+                            if (textarea) textarea.focus();
+                          }}
+                          className="px-3 py-1.5 rounded-full border border-border/40 bg-muted/30 text-xs text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all"
+                        >
+                          {prompt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+            <>
             {/* Tab bar */}
             <div className="flex-shrink-0 flex items-center gap-0.5 px-3 py-1.5 border-b border-border/40 bg-muted/20">
               {[
@@ -832,7 +937,7 @@ const VibeCoding = () => {
                 <button key={id} onClick={() => setRightTab(id as any)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${rightTab === id ? "bg-background text-foreground shadow-sm border border-border/50" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"}`}>
                   <Icon className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">{label}</span>
+                  <span>{label}</span>
                 </button>
               ))}
               <div className="ml-auto flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -888,6 +993,8 @@ const VibeCoding = () => {
                 <ChatIteration files={generatedFiles} onFilesUpdated={setGeneratedFiles} isAgentRunning={isRunning} />
               </div>
             )}
+            </>
+            )}
           </div>
 
           {/* RIGHT: Activity panel — always visible on desktop, slide-up overlay on mobile */}
@@ -923,7 +1030,7 @@ const VibeCoding = () => {
                   title={hint}
                   className={`flex items-center gap-1 px-2 py-1.5 rounded-md text-[11px] font-medium transition-colors whitespace-nowrap ${bottomTab === id ? "bg-background text-foreground shadow-sm border border-border/50" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"}`}>
                   <Icon className="h-3 w-3 flex-shrink-0" />
-                  <span className="hidden sm:inline">{label}</span>
+                  <span>{label}</span>
                   {id === "history" && projectHistory.length > 0 && (
                     <span className="bg-primary/20 text-primary rounded-full px-1 text-[9px]">{projectHistory.length}</span>
                   )}
