@@ -705,10 +705,10 @@ const VibeCoding = () => {
     <div className="min-h-screen bg-background">
       <Header />
 
-      <main className="pt-14 flex flex-col" style={{ height: '100dvh', paddingTop: '56px' }}>
+      <main className="pt-14 sm:pt-16 flex flex-col" style={{ height: '100dvh' }}>
 
         {/* ── Top bar ── */}
-        <div className="flex-shrink-0 border-b border-border/40 bg-background/95 backdrop-blur px-3 py-2">
+        <div className="flex-shrink-0 border-b border-border/40 bg-background/95 backdrop-blur px-4 sm:px-6 py-2.5">
 
           {/* Row 1: labeled action buttons */}
           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap">

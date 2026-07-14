@@ -18,8 +18,8 @@ const Header = () => {
   ];
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
-      <div className="container mx-auto flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4">
+    <header className="fixed top-0 left-0 right-0 z-50 h-14 sm:h-16 border-b border-border/50 bg-background/80 backdrop-blur-xl">
+      <div className="container mx-auto flex items-center justify-between h-full px-4 sm:px-6">
         <Link to="/" className="flex items-center gap-2 sm:gap-3 hover:opacity-80 transition-opacity" data-testid="link-home">
           <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-primary/10 border border-primary/30">
             <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
