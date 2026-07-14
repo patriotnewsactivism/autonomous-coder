@@ -61,7 +61,7 @@ export default function CompactInput({ onSubmit, isRunning, onStop, initialValue
           }`}
         >
           {mode === "superagent" ? <Bot className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
-          <span className="hidden sm:inline">{mode === "superagent" ? "Super" : "Vibe"}</span>
+          <span>{mode === "superagent" ? "Super" : "Vibe"}</span>
           <ChevronDown className="h-3 w-3" />
         </button>
         {showModeMenu && (
@@ -114,7 +114,7 @@ export default function CompactInput({ onSubmit, isRunning, onStop, initialValue
             className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 sm:px-3 sm:py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-            <span className="hidden sm:inline">Build</span>
+            <span>Build</span>
           </button>
         )}
       </div>
