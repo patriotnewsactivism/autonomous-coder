@@ -710,12 +710,12 @@ const VibeCoding = () => {
         <div className="flex-shrink-0 border-b border-border/40 bg-background/95 backdrop-blur px-3 py-2">
 
           {/* Row 1: model + import + input + build button */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap">
             {/* Model selector — icon only on mobile */}
             <div className="relative flex-shrink-0">
               <button
                 onClick={() => setShowModelMenu(!showModelMenu)}
-                className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground hover:bg-muted/60"
+                className="flex items-center gap-1 px-2 py-2 sm:py-1.5 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground hover:bg-muted/60"
               >
                 <Brain className="h-3.5 w-3.5 text-purple-400" />
                 <span className="hidden sm:inline max-w-[100px] truncate">{selectedModel || "Model"}</span>
@@ -746,25 +746,30 @@ const VibeCoding = () => {
             {/* Import Repo button */}
             <button
               onClick={() => setShowImportDialog(true)}
-              className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-colors text-xs font-medium"
+              className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-2 sm:py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-colors text-xs font-medium"
             >
               <FolderGit2 className="h-3.5 w-3.5" />
               <span className="hidden md:inline">Import Repo</span>
             </button>
 
-            {/* Main input — takes all remaining space */}
-            <div className="flex-1 min-w-0">
+            {/* Main input — inline on desktop only */}
+            <div className="hidden sm:flex flex-1 min-w-0">
               <CompactInput onSubmit={runAutonomousAgents} isRunning={isRunning} onStop={handleStop} initialValue={importPrompt} onInitialValueConsumed={() => setImportPrompt("")} />
             </div>
 
             {/* Activity panel toggle (mobile) */}
             <button
               onClick={() => setRightPanelOpen(v => !v)}
-              className="md:hidden flex-shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground hover:bg-muted/60"
+              className="md:hidden flex-shrink-0 flex items-center gap-1 px-2 py-2 sm:py-1.5 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground hover:bg-muted/60"
             >
               <Activity className="h-3.5 w-3.5" />
               {messages.length > 0 && <span className="text-[10px] bg-primary/20 text-primary rounded-full px-1">{messages.length}</span>}
             </button>
+          </div>
+
+          {/* Main input — full-width own row on mobile */}
+          <div className="mt-1.5 sm:hidden">
+            <CompactInput onSubmit={runAutonomousAgents} isRunning={isRunning} onStop={handleStop} initialValue={importPrompt} onInitialValueConsumed={() => setImportPrompt("")} />
           </div>
 
           {/* Row 2: cost + status — scrollable on mobile */}
@@ -885,12 +890,18 @@ const VibeCoding = () => {
             )}
           </div>
 
-          {/* RIGHT: Activity panel — always visible on desktop, overlay on mobile */}
+          {/* RIGHT: Activity panel — always visible on desktop, slide-up overlay on mobile */}
+          {rightPanelOpen && (
+            <div className="fixed inset-0 z-20 bg-black/40 md:hidden" onClick={() => setRightPanelOpen(false)} />
+          )}
           <div className={`flex-col min-h-0 bg-background border-l border-border/40 flex-shrink-0
             ${rightPanelOpen
-              ? 'flex absolute inset-0 z-30 md:static md:inset-auto md:w-72'
-              : 'hidden'}`}>
-            {/* Panel header with close on mobile */}
+              ? 'flex fixed bottom-0 left-0 right-0 z-30 max-h-[70vh] rounded-t-2xl shadow-2xl md:static md:inset-auto md:w-72 md:max-h-none md:rounded-none md:shadow-none'
+              : 'hidden md:flex md:w-72'}`}>
+            {/* Panel header with drag handle + close on mobile */}
+            <div className="flex-shrink-0 flex flex-col items-center md:hidden">
+              <div className="w-10 h-1 bg-muted-foreground/30 rounded-full mt-2 mb-1" />
+            </div>
             <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-border/40 bg-muted/20 md:hidden">
               <span className="text-sm font-medium text-foreground">Activity</span>
               <button onClick={() => setRightPanelOpen(false)} className="p-1.5 rounded-md hover:bg-muted/60 text-muted-foreground">
