@@ -246,6 +246,60 @@ export function setSelectedModel(model: string): void {
   try { localStorage.setItem(SELECTED_MODEL_KEY, model); } catch { /* noop */ }
 }
 
+// ── Exhausted-model tracking ────────────────────────────────────────────────
+// When a model returns a billing/quota error (402 Insufficient Balance, etc.)
+// we flag it here so the model picker can show it struck-through and
+// unselectable instead of silently failing again on the next attempt.
+// Self-clears after a TTL since balances/quotas do get topped up or reset.
+export const EXHAUSTED_MODELS_KEY = "acw_exhausted_models";
+const EXHAUSTED_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
+
+interface ExhaustedEntry { reason: string; at: number; }
+
+function readExhaustedMap(): Record<string, ExhaustedEntry> {
+  try {
+    const raw = localStorage.getItem(EXHAUSTED_MODELS_KEY);
+    if (!raw) return {};
+    const map = JSON.parse(raw) as Record<string, ExhaustedEntry>;
+    // Prune expired entries on read so isModelExhausted() is always fresh.
+    const now = Date.now();
+    let changed = false;
+    for (const key of Object.keys(map)) {
+      if (now - map[key].at > EXHAUSTED_TTL_MS) { delete map[key]; changed = true; }
+    }
+    if (changed) localStorage.setItem(EXHAUSTED_MODELS_KEY, JSON.stringify(map));
+    return map;
+  } catch { return {}; }
+}
+
+/** Detects billing/quota-exhaustion errors — 402 Insufficient Balance and friends. */
+export function isExhaustionError(message: string): boolean {
+  if (!message) return false;
+  const m = message.toLowerCase();
+  return (
+    m.includes("insufficient balance") ||
+    m.includes("402") ||
+    (m.includes("quota") && (m.includes("exceeded") || m.includes("exhausted")))
+  );
+}
+
+export function markModelExhausted(model: string | undefined, reason: string): void {
+  if (!model) return;
+  try {
+    const map = readExhaustedMap();
+    map[model] = { reason, at: Date.now() };
+    localStorage.setItem(EXHAUSTED_MODELS_KEY, JSON.stringify(map));
+  } catch { /* noop */ }
+}
+
+export function isModelExhausted(model: string): boolean {
+  return !!readExhaustedMap()[model];
+}
+
+export function getExhaustedReason(model: string): string | null {
+  return readExhaustedMap()[model]?.reason ?? null;
+}
+
 // ── Autosave ──────────────────────────────────────────────────────────────────
 export interface AutoSaveData {
   goal: string;
@@ -309,11 +363,21 @@ export async function fetchProviderStatus(): Promise<ProviderStatusResult> {
 // ── Low-level streaming + non-streaming agent call ────────────────────────────
 async function runAgentRaw<T>(agentType: AgentType, goal: string, context?: any): Promise<T & { tokenCount: number; costUsd: number }> {
   const model = getSelectedModel() || undefined;
-  const data = await apiRequest("/api/ai-agent", {
-    method: "POST",
-    body: JSON.stringify({ agentType, goal, context, model }),
-  });
-  if (data.error) throw new Error(data.error);
+  let data: any;
+  try {
+    data = await apiRequest("/api/ai-agent", {
+      method: "POST",
+      body: JSON.stringify({ agentType, goal, context, model }),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (isExhaustionError(msg)) markModelExhausted(model, msg);
+    throw e;
+  }
+  if (data.error) {
+    if (isExhaustionError(data.error)) markModelExhausted(model, data.error);
+    throw new Error(data.error);
+  }
   if (data.tokens) addSessionTokens(data.tokens);
   if (data.costUsd) addSessionCost(data.costUsd);
   return { ...(data.result as T), tokenCount: data.tokens || 0, costUsd: data.costUsd || 0 };
@@ -333,7 +397,9 @@ async function runAgentStreaming<T>(
   });
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `Request failed: ${response.status}`);
+    const errMsg = errorData.error || `Request failed: ${response.status}`;
+    if (response.status === 402 || isExhaustionError(errMsg)) markModelExhausted(model, errMsg);
+    throw new Error(errMsg);
   }
 
   const reader = response.body!.getReader();
@@ -358,7 +424,10 @@ async function runAgentStreaming<T>(
           addSessionTokens(tokens);
           addSessionCost(costUsd);
           result = { ...(data.result as T), tokenCount: tokens, costUsd };
-        } else if (data.message !== undefined) throw new Error(data.message);
+        } else if (data.message !== undefined) {
+          if (isExhaustionError(data.message)) markModelExhausted(model, data.message);
+          throw new Error(data.message);
+        }
       } catch (e) {
         if (e instanceof Error && e.message && !e.message.includes("JSON")) throw e;
       }
