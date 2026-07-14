@@ -84,7 +84,7 @@ export default function CompactInput({ onSubmit, isRunning, onStop, initialValue
       </div>
 
       {/* Text input */}
-      <div className={`flex-1 flex items-end gap-2 bg-muted/30 border rounded-xl px-3 py-2 transition-all ${
+      <div className={`flex-1 flex items-end gap-2 bg-muted/30 border rounded-xl px-3 py-2.5 sm:py-2 transition-all ${
         isRunning ? "border-primary/40 shadow-[0_0_12px_rgba(99,102,241,0.1)]" : "border-border/40 focus-within:border-primary/50"
       }`}>
         <textarea
@@ -95,8 +95,8 @@ export default function CompactInput({ onSubmit, isRunning, onStop, initialValue
           placeholder={isRunning ? "Agents are working…" : mode === "superagent" ? "Give me any project, fully autonomous…" : "What do you want to build?"}
           disabled={isRunning}
           rows={1}
-          style={{ height: "36px", minHeight: "36px" }}
-          className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 resize-none outline-none leading-5 py-1"
+          style={{ height: "40px", minHeight: "40px" }}
+          className="flex-1 bg-transparent text-sm sm:text-sm text-foreground placeholder:text-muted-foreground/60 resize-none outline-none leading-5 py-1.5 sm:py-1"
         />
 
         {isRunning ? (
@@ -111,7 +111,7 @@ export default function CompactInput({ onSubmit, isRunning, onStop, initialValue
           <button
             onClick={handleSubmit}
             disabled={!input.trim()}
-            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 sm:px-3 sm:py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
             <span className="hidden sm:inline">Build</span>
