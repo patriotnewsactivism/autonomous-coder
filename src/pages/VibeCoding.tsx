@@ -29,6 +29,7 @@ import {
   getSessionTokens, addSessionTokens, resetSessionTokens, estimateCost, SESSION_TOKENS_KEY,
   getSessionCost, resetSessionCost, formatCost,
   getSelectedModel, setSelectedModel, fetchModels, fetchProviderStatus,
+  isModelExhausted, getExhaustedReason,
   autoSave, getAutoSave, clearAutoSave, AutoSaveData,
   type ProviderStatusResult,
 } from "@/lib/agents";
@@ -724,12 +725,32 @@ const VibeCoding = () => {
               </button>
               {showModelMenu && (
                 <div className="absolute top-full mt-1 left-0 z-50 min-w-[180px] bg-popover border border-border rounded-lg shadow-xl p-1 max-h-60 overflow-y-auto">
-                  {availableModels.map(m => (
-                    <button key={m} onClick={() => { setSelectedModel(m); setSelectedModelState(m); setShowModelMenu(false); }}
-                      className={`w-full text-left px-3 py-1.5 rounded-md text-xs ${m === selectedModel ? "bg-primary/10 text-primary" : "hover:bg-muted text-foreground"}`}>
-                      {m}
-                    </button>
-                  ))}
+                  {availableModels.map(m => {
+                    const exhausted = isModelExhausted(m);
+                    return (
+                      <button
+                        key={m}
+                        disabled={exhausted}
+                        onClick={() => {
+                          if (exhausted) {
+                            toast.error(`${m} is unavailable (${getExhaustedReason(m) || "exhausted"}) — pick another model`);
+                            return;
+                          }
+                          setSelectedModel(m); setSelectedModelState(m); setShowModelMenu(false);
+                        }}
+                        title={exhausted ? `Unavailable: ${getExhaustedReason(m) || "exhausted"}` : undefined}
+                        className={`w-full text-left px-3 py-1.5 rounded-md text-xs flex items-center justify-between gap-2 ${
+                          exhausted
+                            ? "line-through decoration-red-500 text-red-400/80 cursor-not-allowed"
+                            : m === selectedModel ? "bg-primary/10 text-primary" : "hover:bg-muted text-foreground"
+                        }`}>
+                        <span className="truncate">{m}</span>
+                        {exhausted && (
+                          <span className="text-[9px] shrink-0 text-red-500 font-semibold no-underline">EXHAUSTED</span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
