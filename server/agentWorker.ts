@@ -24,21 +24,32 @@ function getModelForAgent(agentType: string, requestedModel?: string): string | 
   const hasKilo = !!(env.KILOCODE_API_KEY || env.KILO_API_KEY);
   const hasGemini = !!(env.GEMINI_API_KEY || env.GOOGLE_API_KEY);
   const hasCohere = !!(env.COHERE_API_KEY);
+  const hasMistral = !!(env.MISTRAL_API_KEY);
+
+  // Coding-write subset of speedRoles — these literally write/edit code.
+  const codingWriteRoles = ["builder", "fixer", "api", "ui", "database"];
 
   if (heavyRoles.includes(agentType)) {
+    // Reviewer is a dedicated code-review task — Codestral is purpose-built for this.
+    if (agentType === "reviewer" && hasMistral) return "codestral-2508";
     if (hasDeepSeek) return "deepseek-v4-pro"; // DeepSeek V4 Pro — best for deep reasoning
     if (hasKilo) return "kilo/auto";           // Kilo smart-routes to premium model
     if (hasGemini) return "gemini-2.5-flash";
+    if (hasMistral) return "mistral-small-2506";
     return undefined;
   }
 
   if (speedRoles.includes(agentType)) {
+    // Devstral: Mistral's purpose-built agentic coding model (multi-file edits, tool use) —
+    // preferred over North Mini Code (a 3B mini) for the actual code-writing roles.
+    if (hasMistral && codingWriteRoles.includes(agentType)) return "devstral-2512";
     // North Mini Code: 3B active params, trained specifically for agentic coding tasks
-    if (hasCohere && ["builder", "fixer", "api", "ui", "database"].includes(agentType))
+    if (hasCohere && codingWriteRoles.includes(agentType))
       return "north-mini-code-1-0";
     if (hasDeepSeek) return "deepseek-v4-flash"; // Fast + cheap for code gen
     if (hasKilo) return "kilo/auto";
     if (hasGemini) return "gemini-2.0-flash";
+    if (hasMistral) return "devstral-2512"; // remaining speed roles (strategist/testing/refiner/mobile/deployer)
     return undefined;
   }
 
@@ -46,6 +57,7 @@ function getModelForAgent(agentType: string, requestedModel?: string): string | 
     if (hasKilo) return "kilo/auto";           // Kilo picks Claude/GPT for creative tasks
     if (hasGemini) return "gemini-2.5-flash";
     if (hasDeepSeek) return "deepseek-v4-pro";
+    if (hasMistral) return "mistral-small-2506";
     return undefined;
   }
 
