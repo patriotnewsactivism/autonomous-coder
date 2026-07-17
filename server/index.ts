@@ -16,10 +16,26 @@ const allowedOrigins = [
   "https://ai.donmatthews.live",
   "http://localhost:5000",
   "http://localhost:3000",
-];
+  "http://localhost:5173",
+  /\.vercel\.app$/,
+  /\.railway\.app$/,
+  /autonomous-coder/,
+  process.env.APP_URL,
+  process.env.VITE_APP_URL,
+].filter(Boolean);
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || allowedOrigins.some(o => origin.startsWith(o))) return cb(null, true);
+    if (!origin) return cb(null, true);
+    
+    const isAllowed = allowedOrigins.some(o => {
+      if (o instanceof RegExp) {
+        return o.test(origin);
+      }
+      return origin.startsWith(o);
+    });
+
+    if (isAllowed) return cb(null, true);
+    
     // Allow any origin in dev
     if (process.env.NODE_ENV !== "production") return cb(null, true);
     cb(new Error(`CORS: origin ${origin} not allowed`));
