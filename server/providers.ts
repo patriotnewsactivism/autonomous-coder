@@ -10,7 +10,7 @@
 
 // ── Provider configs ────────────────────────────────────────────────────────
 
-export type ProviderName = "deepseek" | "kilo" | "groq" | "gemini" | "cerebras" | "github" | "cohere";
+export type ProviderName = "deepseek" | "kilo" | "groq" | "gemini" | "cerebras" | "github" | "cohere" | "mistral";
 
 interface ProviderConfig {
   name: ProviderName;
@@ -139,6 +139,22 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
     ],
     isFree: true,
   },
+
+  mistral: {
+    name: "mistral",
+    label: "Mistral AI",
+    apiKeyEnv: ["MISTRAL_API_KEY"],
+    endpoint: "https://api.mistral.ai/v1/chat/completions",
+    models: [
+      // Devstral: Mistral's purpose-built agentic coding model (multi-file edits, tool use).
+      { id: "devstral-2512", label: "Devstral (Mistral) — agentic coding", contextWindow: 256000, pricing: [0.4, 2.0] },
+      // Codestral: Mistral's code-completion/review-focused model.
+      { id: "codestral-2508", label: "Codestral (Mistral) — code review", contextWindow: 256000, pricing: [0.3, 0.9] },
+      // High-throughput general default (5 RPS vs mistral-large's 0.07 RPS on this account).
+      { id: "mistral-small-2506", label: "Mistral Small (high-throughput default)", contextWindow: 128000, pricing: [0.1, 0.3] },
+    ],
+    isFree: false,
+  },
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -160,7 +176,7 @@ function findProviderForModel(modelId: string): ProviderConfig | null {
 
 export function getFallbackChain(): string[] {
   const chain: string[] = [];
-  const order: ProviderName[] = ["gemini", "deepseek", "kilo", "groq", "cerebras", "github", "cohere"];
+  const order: ProviderName[] = ["gemini", "deepseek", "kilo", "mistral", "groq", "cerebras", "github", "cohere"];
   for (const name of order) {
     if (!isProviderActive(name)) continue;
     const primary = PROVIDERS[name].models[0];
