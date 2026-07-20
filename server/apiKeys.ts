@@ -78,7 +78,7 @@ const PROVIDER_VALIDATION_ENDPOINTS: Record<ByokProvider, { url: string; model: 
   groq: { url: "https://api.groq.com/openai/v1/chat/completions", model: "llama-3.3-70b-versatile", kind: "openai" },
   gemini: { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", model: "gemini-2.0-flash", kind: "gemini" },
   cerebras: { url: "https://api.cerebras.ai/v1/chat/completions", model: "llama3.1-8b", kind: "openai" },
-  github: { url: "https://models.inference.ai.azure.com/chat/completions", model: "gpt-4o-mini", kind: "openai" },
+  github: { url: "https://models.github.ai/inference/chat/completions", model: "openai/gpt-4.1", kind: "openai" }, // migrated endpoint -- old azure endpoint + gpt-4o-mini id are dead
   cohere: { url: "https://api.cohere.com/v2/chat", model: "command-r", kind: "cohere" },
 };
 

@@ -114,15 +114,22 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
   },
 
   github: {
+    // Old models.inference.ai.azure.com endpoint + gpt-4o/Phi-4/DeepSeek-R1 IDs
+    // were dead (GitHub Models migrated to models.github.ai; those specific
+    // model IDs are no longer valid there). Repointed to the current endpoint
+    // + org/model-id format, and to GITHUB_TOKEN_4 (the PAT already
+    // provisioned across this ecosystem) instead of the never-configured
+    // GITHUB_TOKEN/GITHUB_MODELS_TOKEN. Model IDs live-verified 2026-07-20 on
+    // this token's access tier -- gpt-5-mini/o4-mini/deepseek-r1 all returned
+    // "Unavailable model" on this tier and are intentionally left out.
     name: "github",
     label: "GitHub Models (Free)",
-    apiKeyEnv: ["GITHUB_TOKEN", "GITHUB_MODELS_TOKEN"],
-    endpoint: "https://models.inference.ai.azure.com/chat/completions",
+    apiKeyEnv: ["GITHUB_TOKEN_4", "GITHUB_TOKEN", "GITHUB_MODELS_TOKEN"],
+    endpoint: "https://models.github.ai/inference/chat/completions",
     models: [
-      { id: "gpt-4o", label: "GPT-4o (GitHub)", contextWindow: 128000, pricing: [0, 0] },
-      { id: "gpt-4o-mini", label: "GPT-4o Mini (GitHub)", contextWindow: 128000, pricing: [0, 0] },
-      { id: "Phi-4", label: "Phi-4 (GitHub)", contextWindow: 16000, pricing: [0, 0] },
-      { id: "DeepSeek-R1", label: "DeepSeek-R1 (GitHub)", contextWindow: 64000, pricing: [0, 0] },
+      { id: "openai/gpt-4.1", label: "GPT-4.1 (GitHub)", contextWindow: 128000, pricing: [0, 0] },
+      { id: "mistral-ai/codestral-2501", label: "Codestral 25.01 (GitHub)", contextWindow: 32000, pricing: [0, 0] },
+      { id: "meta/llama-4-maverick-17b-128e-instruct-fp8", label: "Llama 4 Maverick (GitHub)", contextWindow: 128000, pricing: [0, 0] },
     ],
     isFree: true,
   },
