@@ -10,7 +10,7 @@
 
 // ── Provider configs ────────────────────────────────────────────────────────
 
-export type ProviderName = "deepseek" | "kilo" | "groq" | "gemini" | "cerebras" | "github" | "cohere" | "mistral";
+export type ProviderName = "deepseek" | "kilo" | "groq" | "gemini" | "cerebras" | "github" | "cohere" | "mistral" | "qwen";
 
 interface ProviderConfig {
   name: ProviderName;
@@ -162,6 +162,23 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
     ],
     isFree: false,
   },
+
+  // Qwen Cloud (Alibaba Cloud Model Studio, international dashscope-intl
+  // endpoint) -- PAID pay-as-you-go, NOT the mainland Bailian console (that's
+  // a separate account/URL entirely). Verified live 2026-07-20.
+  qwen: {
+    name: "qwen",
+    label: "Qwen Cloud (Paid)",
+    apiKeyEnv: ["QWENCLOUD_API_KEY"],
+    endpoint: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
+    models: [
+      // Official Alibaba Cloud Model Studio international pricing,
+      // confirmed 2026-07-20: alibabacloud.com/help/en/model-studio/model-pricing
+      { id: "qwen3-coder-plus", label: "Qwen3 Coder Plus", contextWindow: 262144, pricing: [1.0, 5.0] },
+      { id: "qwen-max", label: "Qwen Max", contextWindow: 32000, pricing: [1.6, 6.4] },
+    ],
+    isFree: false,
+  },
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -183,7 +200,7 @@ function findProviderForModel(modelId: string): ProviderConfig | null {
 
 export function getFallbackChain(): string[] {
   const chain: string[] = [];
-  const order: ProviderName[] = ["gemini", "deepseek", "kilo", "mistral", "groq", "cerebras", "github", "cohere"];
+  const order: ProviderName[] = ["gemini", "deepseek", "kilo", "mistral", "groq", "cerebras", "github", "qwen", "cohere"];
   for (const name of order) {
     if (!isProviderActive(name)) continue;
     const primary = PROVIDERS[name].models[0];
@@ -245,6 +262,8 @@ const PROVIDER_SIGNUP_URLS: Record<ProviderName, string> = {
   cerebras: "https://cloud.cerebras.ai",
   github: "https://github.com/settings/tokens",
   cohere: "https://dashboard.cohere.com/api-keys",
+  mistral: "https://console.mistral.ai",
+  qwen: "https://modelstudio.console.alibabacloud.com",
 };
 
 const PROVIDER_ENV_VARS: Record<ProviderName, string> = {
@@ -255,6 +274,8 @@ const PROVIDER_ENV_VARS: Record<ProviderName, string> = {
   cerebras: "CEREBRAS_API_KEY",
   github: "GITHUB_TOKEN_4 (or GITHUB_TOKEN / GITHUB_MODELS_TOKEN)",
   cohere: "COHERE_API_KEY",
+  mistral: "MISTRAL_API_KEY",
+  qwen: "QWENCLOUD_API_KEY",
 };
 
 export function getProvidersStatus(): ProviderStatus[] {
