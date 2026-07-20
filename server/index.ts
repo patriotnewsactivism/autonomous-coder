@@ -7,6 +7,7 @@ import { registerParallelRoutes } from "./parallelRoutes";
 import { serveStatic, log } from "./static";
 import { setupCronJobs } from "./cronJobs";
 import { startEmployeeWorker } from "./employeeWorker";
+import { runMigrations } from "./runMigrations";
 
 const app = express();
 app.set("trust proxy", 1); // Render sits behind a proxy; without this, express-rate-limit throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR on every request
@@ -122,6 +123,8 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || "10000", 10);
+await runMigrations();
+
 app.listen(PORT, "0.0.0.0", () => {
   log(`🚀 Autonomous Coder running on port ${PORT}`);
   log(`   NODE_ENV: ${process.env.NODE_ENV || "development"}`);
