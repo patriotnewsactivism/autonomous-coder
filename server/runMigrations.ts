@@ -33,7 +33,8 @@ async function tryConnect(connectionString: string): Promise<Pool | null> {
   try {
     await pool.query("select 1");
     return pool;
-  } catch {
+  } catch (err: any) {
+    console.log(`[migrations]   -> ${err?.message || err}`);
     await pool.end().catch(() => {});
     return null;
   }
