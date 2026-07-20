@@ -253,7 +253,7 @@ const PROVIDER_ENV_VARS: Record<ProviderName, string> = {
   groq: "GROQ_API_KEY",
   gemini: "GEMINI_API_KEY (or GOOGLE_API_KEY)",
   cerebras: "CEREBRAS_API_KEY",
-  github: "GITHUB_TOKEN (or GITHUB_MODELS_TOKEN)",
+  github: "GITHUB_TOKEN_4 (or GITHUB_TOKEN / GITHUB_MODELS_TOKEN)",
   cohere: "COHERE_API_KEY",
 };
 
