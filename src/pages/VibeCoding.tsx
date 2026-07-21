@@ -618,7 +618,80 @@ const VibeCoding = () => {
         }
       }
 
+      // ── STEP 7.5: VERIFY — real install/typecheck/build/test, no LLM guessing ──
+      // This is the actual completion gate. Reviewer/Fixer/AutoHeal above are
+      // opinion + browser-console-error based; this step runs real processes
+      // with real exit codes and is the only thing allowed to call a build
+      // "done". On failure it feeds the real error output back into the
+      // existing Fixer for a bounded number of real fix-and-reverify cycles;
+      // if it still fails after those, the build is honestly reported as
+      // NOT complete instead of a false success.
+      let verificationPassed = true;
+      let verificationSummary = "Not applicable";
+      const MAX_VERIFY_FIX_CYCLES = 2;
+      if (allFiles.length > 0 && !stopRef.current) {
+        setCurrentAgent("reviewer" as AgentType);
+        for (let cycle = 0; cycle <= MAX_VERIFY_FIX_CYCLES; cycle++) {
+          if (stopRef.current) break;
+          addMessage("reviewer", "thinking", cycle === 0
+            ? "🔬 Verifying: running real install/typecheck/build/test…"
+            : `🔬 Re-verifying after fix cycle ${cycle}…`);
+          try {
+            const verifyRes = await fetch(`${API_BASE}/api/verify`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ files: allFiles }),
+            });
+            const verifyResult = await verifyRes.json();
+            verificationPassed = !!verifyResult.passed;
+            verificationSummary = verifyResult.summary || (verificationPassed ? "Passed" : "Failed");
+
+            const stepLines = (verifyResult.steps || [])
+              .map((s: any) => s.ran ? `${s.passed ? "✅" : "❌"} ${s.name}` : `⏭️ ${s.name} (${s.skippedReason || "skipped"})`)
+              .join("  ");
+            addMessage("reviewer", verificationPassed ? "result" : "error",
+              `${verificationPassed ? "✅ Verification passed" : "❌ Verification failed"} — ${stepLines}`);
+
+            if (verificationPassed || cycle === MAX_VERIFY_FIX_CYCLES) break;
+
+            // Real failure — pull the actual failing step's real output and hand it to the Fixer
+            const failedStep = (verifyResult.steps || []).find((s: any) => s.ran && !s.passed);
+            const realErrorText = failedStep ? `[${failedStep.name}] ${failedStep.output}`.slice(0, 4000) : "Verification failed with no captured output.";
+            setCurrentAgent("fixer" as AgentType);
+            addMessage("fixer", "thinking", `🔧 Fixing real ${failedStep?.name || "verification"} failure (cycle ${cycle + 1}/${MAX_VERIFY_FIX_CYCLES})…`);
+            const fixStream = addStreamingMessage("fixer");
+            try {
+              const fixResult: FixResult = await runFixer(
+                goal, allFiles,
+                { issues: [{ file: failedStep?.name || "build", description: realErrorText, severity: "critical" }], summary: realErrorText, tokenCount: 0, costUsd: 0 } as any,
+                fixStream
+              );
+              finalizeStreamingMessage("fixer", `Fixed ${fixResult.files.length} files based on real ${failedStep?.name} error`);
+              if (fixResult.files.length > 0) {
+                fixResult.files.forEach(fix => {
+                  const idx = allFiles.findIndex(f => f.path === fix.path);
+                  if (idx >= 0) allFiles[idx] = { ...allFiles[idx], content: fix.fixedCode };
+                });
+                setGeneratedFiles([...allFiles]);
+                sandbox.injectFiles(allFiles.filter(f => fixResult.files.some(fx => fx.path === f.path)));
+              }
+              addMessage("fixer", "result", `Patched ${fixResult.files.length} file(s), re-verifying…`);
+            } catch (fixErr: any) {
+              addMessage("fixer", "error", `Fix cycle failed: ${fixErr.message}`);
+              break; // can't fix, no point re-verifying the same failure
+            }
+          } catch (verifyErr: any) {
+            // Verification harness itself unreachable/errored — do NOT assume pass
+            verificationPassed = false;
+            verificationSummary = `Verification could not run: ${verifyErr.message}`;
+            addMessage("reviewer", "error", `⚠️ Verification unreachable — cannot confirm build is real: ${verifyErr.message}`);
+            break;
+          }
+        }
+      }
+
       // ── STEP 8: AutoLearn — extract build wisdom for future sessions ──
+      // success now reflects the REAL verification outcome, not a hardcoded true.
       if (allFiles.length > 0 && !stopRef.current) {
         try {
           fetch(`${API_BASE}/api/autolearn`, {
@@ -635,7 +708,8 @@ const VibeCoding = () => {
                 files: allFiles.slice(0, 5),
                 healCycles: sandbox.state.observationCount,
                 totalTokens: getSessionTokens(),
-                success: true,
+                success: verificationPassed,
+                verificationSummary,
               },
               model: getSelectedModel() || undefined,
             }),
@@ -645,7 +719,7 @@ const VibeCoding = () => {
 
       // ── Complete ──
       setCurrentAgent(undefined);
-      setTasks(prev => prev.map(t => ({ ...t, status: "completed" as const })));
+      setTasks(prev => prev.map(t => ({ ...t, status: verificationPassed ? "completed" as const : t.status })));
       sandbox.setBuilding(false);
 
       // Save to backend
@@ -654,8 +728,13 @@ const VibeCoding = () => {
       }
 
       const totalTok = getSessionTokens();
-      addMessage("orchestrator", "result", `✅ Build complete — ${allFiles.length} files · ${totalTok.toLocaleString()} tokens · ${sandbox.state.observationCount} heal cycles`, { tokenCount: 0 });
-      toast.success(`Build complete — ${allFiles.length} files generated`);
+      if (verificationPassed) {
+        addMessage("orchestrator", "result", `✅ Build complete & VERIFIED — ${allFiles.length} files · ${totalTok.toLocaleString()} tokens · ${sandbox.state.observationCount} heal cycles`, { tokenCount: 0 });
+        toast.success(`Build complete & verified — ${allFiles.length} files generated`);
+      } else {
+        addMessage("orchestrator", "error", `⚠️ Build finished but verification did NOT pass: ${verificationSummary}. Files are saved but are not confirmed working — review the ❌ step output above before shipping this.`);
+        toast.error(`Build finished, but verification failed: ${verificationSummary}`);
+      }
 
     } catch (e: any) {
       setCurrentAgent(undefined);

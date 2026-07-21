@@ -1028,6 +1028,21 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
+  // ── Verify: REAL install/typecheck/build/test execution, no LLM guessing ───
+  app.post("/api/verify", async (req, res) => {
+    try {
+      const { files } = req.body;
+      if (!Array.isArray(files) || files.length === 0) {
+        return res.status(400).json({ error: "files required" });
+      }
+      const { runVerification } = await import("./verify.js");
+      const result = await runVerification(files);
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Verification failed" });
+    }
+  });
+
   // ── AutoLearn: extract + store learnings after a build ─────────────────────
   app.post("/api/autolearn", async (req, res) => {
     try {
