@@ -26,7 +26,7 @@ import { useNavigate } from "react-router-dom";
 const AGENT_CATEGORIES = [
   { name: "Core", agents: ["Orchestrator", "Strategist"], color: "text-[#8C1D40]" },
   { name: "Research", agents: ["Researcher", "Architect", "Analyst"], color: "text-cyan-400" },
-  { name: "Build", agents: ["Database", "API", "UI/UX", "Builder", "Mobile"], color: "text-violet-400" },
+  { name: "Build", agents: ["Database", "API", "UI/UX", "Builder", "Mobile"], color: "text-[#D65D82]" },
   { name: "Quality", agents: ["Testing", "Security", "Performance"], color: "text-yellow-400" },
   { name: "Polish", agents: ["SEO", "Accessibility", "Docs", "Optimizer"], color: "text-emerald-400" },
   { name: "Review", agents: ["Reviewer", "Fixer", "Refiner"], color: "text-blue-400" },
@@ -143,7 +143,7 @@ export default function LandingPage() {
       <nav className="sticky top-0 z-40 border-b border-white/5 bg-[#0a0a0a]/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-violet-400" />
+            <Zap className="h-5 w-5 text-[#D65D82]" />
             <span className="font-mono text-sm font-semibold tracking-tight text-white">
               Autonomous Coder
             </span>
@@ -157,7 +157,7 @@ export default function LandingPage() {
             </button>
             <button
               onClick={() => navigate("/vibe")}
-              className="rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-500"
+              className="rounded-md bg-[#8C1D40] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#A62550]"
             >
               Start Building
             </button>
@@ -172,13 +172,13 @@ export default function LandingPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-xs font-medium text-violet-300">
+          <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-[#A62550]/20 bg-[#A62550]/10 px-3 py-1 text-xs font-medium text-[#E8A0B8]">
             <Sparkles className="h-3.5 w-3.5" />
             21 agents. 6 pipelines. One prompt.
           </div>
           <h1 className="text-4xl font-bold leading-tight text-white sm:text-6xl">
             Describe it. A team of{" "}
-            <span className="text-violet-400">autonomous agents</span> builds it.
+            <span className="text-[#D65D82]">autonomous agents</span> builds it.
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-400">
             Autonomous Coder spins up a real engineering team for your idea —
@@ -189,7 +189,7 @@ export default function LandingPage() {
           <div className="mt-8 flex items-center justify-center gap-4">
             <button
               onClick={() => navigate("/vibe")}
-              className="flex items-center gap-2 rounded-md bg-violet-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-violet-500"
+              className="flex items-center gap-2 rounded-md bg-[#8C1D40] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#A62550]"
             >
               Start Building Free <ArrowRight className="h-4 w-4" />
             </button>
@@ -215,7 +215,7 @@ export default function LandingPage() {
               transition={{ duration: 0.4, delay: i * 0.05 }}
               className="rounded-lg border border-white/10 bg-white/[0.02] p-6"
             >
-              <f.icon className="mb-3 h-6 w-6 text-violet-400" />
+              <f.icon className="mb-3 h-6 w-6 text-[#D65D82]" />
               <h3 className="mb-2 font-semibold text-white">{f.title}</h3>
               <p className="text-sm leading-relaxed text-slate-400">{f.desc}</p>
             </motion.div>
@@ -265,7 +265,7 @@ export default function LandingPage() {
               key={p.label}
               className="flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.02] p-5"
             >
-              <p.icon className="mt-0.5 h-5 w-5 shrink-0 text-violet-400" />
+              <p.icon className="mt-0.5 h-5 w-5 shrink-0 text-[#D65D82]" />
               <div>
                 <div className="font-semibold text-white">{p.label}</div>
                 <div className="mt-1 text-sm text-slate-400">{p.desc}</div>
@@ -289,12 +289,12 @@ export default function LandingPage() {
               key={plan.key}
               className={`relative flex flex-col rounded-xl border p-6 ${
                 plan.highlight
-                  ? "border-violet-500/50 bg-violet-500/[0.06]"
+                  ? "border-[#A62550]/50 bg-[#A62550]/[0.06]"
                   : "border-white/10 bg-white/[0.02]"
               }`}
             >
               {plan.highlight && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-violet-600 px-3 py-0.5 text-xs font-semibold text-white">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#8C1D40] px-3 py-0.5 text-xs font-semibold text-white">
                   Most Popular
                 </div>
               )}
@@ -309,7 +309,7 @@ export default function LandingPage() {
               <ul className="mt-5 flex-1 space-y-2.5 text-sm text-slate-300">
                 {plan.features.map((f) => (
                   <li key={f} className="flex items-start gap-2">
-                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-400" />
+                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#D65D82]" />
                     {f}
                   </li>
                 ))}
@@ -327,7 +327,7 @@ export default function LandingPage() {
                 onClick={() => navigate("/vibe")}
                 className={`mt-6 rounded-md px-4 py-2.5 text-sm font-semibold transition ${
                   plan.highlight
-                    ? "bg-violet-600 text-white hover:bg-violet-500"
+                    ? "bg-[#8C1D40] text-white hover:bg-[#A62550]"
                     : "border border-white/10 text-slate-200 hover:border-white/20"
                 }`}
               >
@@ -343,7 +343,7 @@ export default function LandingPage() {
         <h2 className="text-2xl font-bold text-white">Your next app is one prompt away.</h2>
         <button
           onClick={() => navigate("/vibe")}
-          className="mt-6 inline-flex items-center gap-2 rounded-md bg-violet-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-violet-500"
+          className="mt-6 inline-flex items-center gap-2 rounded-md bg-[#8C1D40] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#A62550]"
         >
           Start Building Free <ArrowRight className="h-4 w-4" />
         </button>
