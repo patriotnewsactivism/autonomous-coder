@@ -99,6 +99,116 @@ async function materialize(files: VerifyFile[]): Promise<string> {
 }
 
 /**
+ * Real Go verification: `go build ./...` (compiles everything, and Go
+ * modules fetch their own deps as part of build -- no separate install
+ * step needed), then `go vet ./...` for real static-analysis errors, then
+ * `go test ./...` only if actual _test.go files exist. Same honesty rule
+ * as the Node path: every step either really ran and really passed/failed,
+ * or is explicitly marked skipped with a reason -- never a silent pass.
+ */
+async function runGoVerification(dir: string, files: VerifyFile[], steps: VerifyStep[], start: number): Promise<VerifyResult> {
+  const buildStart = Date.now();
+  const build = await runStep("go", ["build", "./..."], dir);
+  steps.push({
+    name: "go_build", ran: true, passed: build.code === 0,
+    durationMs: Date.now() - buildStart, output: build.output,
+  });
+  if (build.code !== 0) {
+    return { passed: false, steps, summary: `go build failed (exit ${build.code ?? "timeout"}) -- real compiler/dependency error.` };
+  }
+
+  if (Date.now() - start > TOTAL_TIMEOUT_MS) {
+    steps.push({ name: "go_vet", ran: false, passed: false, durationMs: 0, output: "", skippedReason: "Total verification time budget exceeded after build." });
+    return { passed: false, steps, summary: "Verification time budget exceeded after go build." };
+  }
+
+  const vetStart = Date.now();
+  const vet = await runStep("go", ["vet", "./..."], dir);
+  steps.push({
+    name: "go_vet", ran: true, passed: vet.code === 0,
+    durationMs: Date.now() - vetStart, output: vet.output,
+  });
+  if (vet.code !== 0) {
+    return { passed: false, steps, summary: `go vet failed (exit ${vet.code ?? "timeout"}) -- real static-analysis error.` };
+  }
+
+  const hasTests = files.some(f => f.path.endsWith("_test.go"));
+  if (hasTests) {
+    const testStart = Date.now();
+    const test = await runStep("go", ["test", "./..."], dir);
+    steps.push({
+      name: "go_test", ran: true, passed: test.code === 0,
+      durationMs: Date.now() - testStart, output: test.output,
+    });
+    if (test.code !== 0) {
+      return { passed: false, steps, summary: `go test failed (exit ${test.code ?? "timeout"}) -- real test failures.` };
+    }
+  } else {
+    steps.push({ name: "go_test", ran: false, passed: true, durationMs: 0, output: "", skippedReason: "No _test.go files found." });
+  }
+
+  return { passed: true, steps, summary: "go build/vet/test all passed (each ran step verified with a real exit code)." };
+}
+
+/**
+ * Real Python verification: `pip install -r requirements.txt` if present
+ * (real dependency resolution, not assumed), `python3 -m compileall` for a
+ * real syntax/compile check across every .py file, then `pytest` only if
+ * pytest is actually an installed/declared dependency and test files exist
+ * -- never invented, never silently skipped and marked passed.
+ */
+async function runPythonVerification(dir: string, files: VerifyFile[], steps: VerifyStep[], start: number): Promise<VerifyResult> {
+  const hasRequirements = files.some(f => f.path === "requirements.txt" || f.path.endsWith("/requirements.txt"));
+  if (hasRequirements) {
+    const installStart = Date.now();
+    const install = await runStep("pip3", ["install", "--no-input", "--disable-pip-version-check", "-r", "requirements.txt"], dir);
+    steps.push({
+      name: "pip_install", ran: true, passed: install.code === 0,
+      durationMs: Date.now() - installStart, output: install.output,
+    });
+    if (install.code !== 0) {
+      return { passed: false, steps, summary: `pip install failed (exit ${install.code ?? "timeout"}) -- real dependency error.` };
+    }
+  } else {
+    steps.push({ name: "pip_install", ran: false, passed: true, durationMs: 0, output: "", skippedReason: "No requirements.txt found." });
+  }
+
+  if (Date.now() - start > TOTAL_TIMEOUT_MS) {
+    steps.push({ name: "py_compile", ran: false, passed: false, durationMs: 0, output: "", skippedReason: "Total verification time budget exceeded after install." });
+    return { passed: false, steps, summary: "Verification time budget exceeded after pip install." };
+  }
+
+  const compileStart = Date.now();
+  const compile = await runStep("python3", ["-m", "compileall", "-q", "."], dir);
+  steps.push({
+    name: "py_compile", ran: true, passed: compile.code === 0,
+    durationMs: Date.now() - compileStart, output: compile.output,
+  });
+  if (compile.code !== 0) {
+    return { passed: false, steps, summary: `python3 -m compileall failed (exit ${compile.code ?? "timeout"}) -- real syntax/compile error.` };
+  }
+
+  const reqContent = files.find(f => f.path === "requirements.txt")?.content || "";
+  const pytestDeclared = /(^|\n)\s*pytest([=<> ]|$)/i.test(reqContent);
+  const hasTestFiles = files.some(f => /(^|\/)test_.*\.py$/.test(f.path) || f.path.endsWith("_test.py"));
+  if (pytestDeclared && hasTestFiles) {
+    const testStart = Date.now();
+    const test = await runStep("python3", ["-m", "pytest", "-q"], dir);
+    steps.push({
+      name: "pytest", ran: true, passed: test.code === 0,
+      durationMs: Date.now() - testStart, output: test.output,
+    });
+    if (test.code !== 0) {
+      return { passed: false, steps, summary: `pytest failed (exit ${test.code ?? "timeout"}) -- real test failures.` };
+    }
+  } else {
+    steps.push({ name: "pytest", ran: false, passed: true, durationMs: 0, output: "", skippedReason: pytestDeclared ? "No test_*.py/*_test.py files found." : "pytest not declared in requirements.txt." });
+  }
+
+  return { passed: true, steps, summary: "pip install/compileall/pytest all passed (each ran step verified with a real exit code)." };
+}
+
+/**
  * Runs real verification against the generated file set. Only supports
  * npm/Node projects for now (the only stack this pipeline can actually
  * generate reliably) — anything else is honestly reported as unsupported
@@ -111,11 +221,29 @@ export async function runVerification(files: VerifyFile[]): Promise<VerifyResult
 
   try {
     const hasPackageJson = files.some(f => f.path === "package.json" || f.path.endsWith("/package.json"));
+    const hasGoMod = files.some(f => f.path === "go.mod" || f.path.endsWith("/go.mod"));
+    const hasPyProject = files.some(f =>
+      f.path === "requirements.txt" || f.path.endsWith("/requirements.txt") ||
+      f.path === "pyproject.toml" || f.path.endsWith("/pyproject.toml") ||
+      f.path === "setup.py" || f.path.endsWith("/setup.py") ||
+      f.path.endsWith(".py")
+    );
+
+    if (hasGoMod) {
+      dir = await materialize(files);
+      return await runGoVerification(dir, files, steps, start);
+    }
+
+    if (!hasPackageJson && hasPyProject) {
+      dir = await materialize(files);
+      return await runPythonVerification(dir, files, steps, start);
+    }
+
     if (!hasPackageJson) {
       return {
         passed: true,
-        steps: [{ name: "detect", ran: false, passed: true, durationMs: 0, output: "", skippedReason: "No package.json in output — not a Node project, real build verification not applicable (honest no-op, not a false pass on a build check)." }],
-        summary: "No Node package.json detected — build/test verification skipped (not applicable to this output).",
+        steps: [{ name: "detect", ran: false, passed: true, durationMs: 0, output: "", skippedReason: "No package.json, go.mod, or Python project markers in output — real build verification not applicable to this stack yet (honest no-op, not a false pass)." }],
+        summary: "No supported project type detected (Node/Go/Python) — build/test verification skipped.",
       };
     }
 
