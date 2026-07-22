@@ -288,13 +288,38 @@ export function registerParallelRoutes(app: Express) {
 
       const allResults = [...phase1Results, ...parallelResults, ...phase4Results];
 
+      // Collect real failures instead of silently reporting success on empty output.
+      // Only count files from agents whose job actually expects to produce them.
+      const fileProducingAgents = new Set(["builder", "ui", "api", "database", "mobile", "fixer", "deployer"]);
+      const failures: string[] = [];
+      let totalFiles = 0;
+      for (const r of allResults) {
+        const files = r.output?.files;
+        const fileCount = Array.isArray(files) ? files.length : 0;
+        totalFiles += fileCount;
+        if (r.status === "failed") {
+          failures.push(`${r.agent}: ${r.error || "unknown error"}`);
+        } else if (fileProducingAgents.has(r.agent) && fileCount === 0) {
+          failures.push(`${r.agent}: produced no files (response did not contain a valid files array)`);
+        }
+      }
+
       workerBus.emit("parallel:done", {
         sessionId: sid,
         totalAgents: allResults.length,
         avgScore: allResults.reduce((s, r) => s + (r.score || 0), 0) / allResults.length,
+        totalFiles,
+        failures,
       });
 
-      res.json({ sessionId: sid, results: allResults, finalContext: sharedContext });
+      if (totalFiles === 0 && sequence.some(a => fileProducingAgents.has(a))) {
+        return res.status(500).json({
+          error: `Build produced no files. Failures: ${failures.join(" | ") || "unknown - all file-producing agents returned empty output"}`,
+          sessionId: sid, results: allResults, finalContext: sharedContext,
+        });
+      }
+
+      res.json({ sessionId: sid, results: allResults, finalContext: sharedContext, failures });
     } catch (err: any) {
       res.status(500).json({ error: err?.message || "parallel build failed" });
     }
