@@ -24,7 +24,7 @@ import { useNavigate } from "react-router-dom";
 // ─── Data (mirrors the real agent roster in src/components/agents/AgentSelector.tsx) ──
 
 const AGENT_CATEGORIES = [
-  { name: "Core", agents: ["Orchestrator", "Strategist"], color: "text-purple-400" },
+  { name: "Core", agents: ["Orchestrator", "Strategist"], color: "text-[#8C1D40]" },
   { name: "Research", agents: ["Researcher", "Architect", "Analyst"], color: "text-cyan-400" },
   { name: "Build", agents: ["Database", "API", "UI/UX", "Builder", "Mobile"], color: "text-violet-400" },
   { name: "Quality", agents: ["Testing", "Security", "Performance"], color: "text-yellow-400" },
