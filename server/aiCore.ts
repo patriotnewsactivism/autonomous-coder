@@ -67,24 +67,43 @@ export async function callAI(
   if (!providerName) {
     const fallback = getFallbackModel(deployment);
     if (fallback && !triedModels.has(fallback)) {
+      console.log(`[callAI] No provider for ${deployment}, falling back to ${fallback}`);
       return callAI(systemPrompt, userMessage, fallback, triedModels, userApiKeys);
     }
     throw new Error(buildNoProvidersError());
   }
 
-  const response = await fetch(req.url, {
-    method: "POST",
-    headers: req.headers,
-    body: JSON.stringify(req.body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(req.url, {
+      method: "POST",
+      headers: req.headers,
+      body: JSON.stringify(req.body),
+    });
+  } catch (networkErr) {
+    // Network-level failure (DNS, TLS, connection refused/timeout) must be
+    // caught here too, not just non-ok HTTP statuses -- otherwise it throws
+    // straight past the fallback chain. This is aiCore.ts's copy of the fix
+    // already shipped in routes.ts's callAI; it was lost when callAI was
+    // extracted into this standalone module (spawnEngine/VibeCoding's real
+    // "vibe code" path calls THIS copy, not the one in routes.ts).
+    const fallback = getFallbackModel(deployment);
+    const msg = networkErr instanceof Error ? networkErr.message : String(networkErr);
+    if (fallback && !triedModels.has(fallback)) {
+      console.log(`[callAI] ${deployment} network error (${msg}), falling back to ${fallback}`);
+      return callAI(systemPrompt, userMessage, fallback, triedModels, userApiKeys);
+    }
+    throw new Error(`AI network error (${deployment}): ${msg}. ${buildNoProvidersError()}`);
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
     const fallback = getFallbackModel(deployment);
     if (fallback && !triedModels.has(fallback)) {
+      console.log(`[callAI] ${deployment} failed (${response.status}: ${errorText.slice(0, 200)}), falling back to ${fallback}`);
       return callAI(systemPrompt, userMessage, fallback, triedModels, userApiKeys);
     }
-    if (response.status === 429) throw new Error("Rate limit exceeded. Please try again.");
+    if (response.status === 429) throw new Error(`Rate limit exceeded on all providers (last: ${deployment}). Tried: ${Array.from(triedModels).join(", ")}.`);
     if (response.status === 401) throw new Error(`${deployment}: Invalid API key.\n\n${buildNoProvidersError()}`);
     throw new Error(`AI error (${deployment}): ${response.status} - ${errorText}`);
   }
@@ -134,23 +153,36 @@ export async function callAIStream(
   if (!providerName) {
     const fallback = getFallbackModel(deployment);
     if (fallback && !triedModels.has(fallback)) {
+      console.log(`[callAIStream] No provider for ${deployment}, falling back to ${fallback}`);
       return callAIStream(systemPrompt, userMessage, onToken, fallback, triedModels, userApiKeys);
     }
     throw new Error(buildNoProvidersError());
   }
 
-  const response = await fetch(req.url, {
-    method: "POST",
-    headers: req.headers,
-    body: JSON.stringify(req.body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(req.url, {
+      method: "POST",
+      headers: req.headers,
+      body: JSON.stringify(req.body),
+    });
+  } catch (networkErr) {
+    const fallback = getFallbackModel(deployment);
+    const msg = networkErr instanceof Error ? networkErr.message : String(networkErr);
+    if (fallback && !triedModels.has(fallback)) {
+      console.log(`[callAIStream] ${deployment} network error (${msg}), falling back to ${fallback}`);
+      return callAIStream(systemPrompt, userMessage, onToken, fallback, triedModels, userApiKeys);
+    }
+    throw new Error(`AI network error (${deployment}): ${msg}. ${buildNoProvidersError()}`);
+  }
 
   if (!response.ok) {
     const fallback = getFallbackModel(deployment);
     if (fallback && !triedModels.has(fallback)) {
+      console.log(`[callAIStream] ${deployment} failed (${response.status}), falling back to ${fallback}`);
       return callAIStream(systemPrompt, userMessage, onToken, fallback, triedModels, userApiKeys);
     }
-    if (response.status === 429) throw new Error("Rate limit exceeded. Please try again.");
+    if (response.status === 429) throw new Error(`Rate limit exceeded on all providers (last: ${deployment}). Tried: ${Array.from(triedModels).join(", ")}.`);
     if (response.status === 401) throw new Error(`${deployment}: Invalid API key.\n\n${buildNoProvidersError()}`);
     throw new Error(`AI error (${deployment}): ${response.status}`);
   }
