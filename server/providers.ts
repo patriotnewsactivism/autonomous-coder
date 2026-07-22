@@ -10,7 +10,7 @@
 
 // ── Provider configs ────────────────────────────────────────────────────────
 
-export type ProviderName = "deepseek" | "kilo" | "groq" | "gemini" | "cerebras" | "github" | "cohere" | "mistral" | "qwen";
+export type ProviderName = "deepseek" | "kilo" | "groq" | "gemini" | "cerebras" | "github" | "cohere" | "mistral" | "qwen" | "openrouter";
 
 interface ProviderConfig {
   name: ProviderName;
@@ -69,6 +69,23 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
       { id: "deepseek/deepseek-v4-pro", label: "DeepSeek V4 Pro (via Kilo)", contextWindow: 1000000, pricing: [0.435, 0.87] },
     ],
     isFree: false,
+  },
+
+  // OpenRouter -- added 2026-07-22, FREE tier only. Fully OpenAI-compatible
+  // (no special buildRequest/parseResponse branch needed, unlike gemini/cohere).
+  // Only 2 genuinely free (:free-suffixed) models kept -- verified live
+  // against openrouter.ai/api/v1/models 2026-07-22; OpenRouter's free catalog
+  // rotates over time so this list may need revisiting later.
+  openrouter: {
+    name: "openrouter",
+    label: "OpenRouter (Free)",
+    apiKeyEnv: ["OPENROUTER_API_KEY"],
+    endpoint: "https://openrouter.ai/api/v1/chat/completions",
+    models: [
+      { id: "openai/gpt-oss-20b:free", label: "GPT-OSS 20B (OpenRouter Free)", contextWindow: 128000, pricing: [0, 0] },
+      { id: "nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 3 Super 120B (OpenRouter Free)", contextWindow: 128000, pricing: [0, 0] },
+    ],
+    isFree: true,
   },
 
   groq: {
@@ -200,7 +217,7 @@ function findProviderForModel(modelId: string): ProviderConfig | null {
 
 export function getFallbackChain(): string[] {
   const chain: string[] = [];
-  const order: ProviderName[] = ["gemini", "deepseek", "kilo", "mistral", "groq", "cerebras", "github", "qwen", "cohere"];
+  const order: ProviderName[] = ["gemini", "deepseek", "kilo", "mistral", "groq", "cerebras", "github", "qwen", "cohere", "openrouter"];
   for (const name of order) {
     if (!isProviderActive(name)) continue;
     const primary = PROVIDERS[name].models[0];
@@ -264,6 +281,7 @@ const PROVIDER_SIGNUP_URLS: Record<ProviderName, string> = {
   cohere: "https://dashboard.cohere.com/api-keys",
   mistral: "https://console.mistral.ai",
   qwen: "https://modelstudio.console.alibabacloud.com",
+  openrouter: "https://openrouter.ai/keys",
 };
 
 const PROVIDER_ENV_VARS: Record<ProviderName, string> = {
@@ -276,6 +294,7 @@ const PROVIDER_ENV_VARS: Record<ProviderName, string> = {
   cohere: "COHERE_API_KEY",
   mistral: "MISTRAL_API_KEY",
   qwen: "QWENCLOUD_API_KEY",
+  openrouter: "OPENROUTER_API_KEY",
 };
 
 export function getProvidersStatus(): ProviderStatus[] {
