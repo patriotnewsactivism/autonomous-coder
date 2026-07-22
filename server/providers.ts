@@ -208,7 +208,31 @@ export function getActiveProviders(): ProviderName[] {
   return (Object.keys(PROVIDERS) as ProviderName[]).filter((n) => isProviderActive(n));
 }
 
+const PROVIDER_ORDER: ProviderName[] = ["gemini", "deepseek", "kilo", "mistral", "groq", "cerebras", "github", "qwen", "cohere", "openrouter"];
+
 function findProviderForModel(modelId: string): ProviderConfig | null {
+  // First pass: match each provider's PRIMARY (fallback-chain) model only, in
+  // canonical provider order. This guarantees fallback-chain entries always
+  // resolve to their intended provider even when some OTHER provider's
+  // secondary/manual-select model list happens to reuse the same raw
+  // upstream id string.
+  //
+  // Concretely: Kilo Gateway exposes "openai/gpt-4.1" as one of its manual
+  // model options (real id, "via Kilo"). GitHub Models' OWN primary
+  // fallback-chain model also happens to be "openai/gpt-4.1" (its real
+  // GitHub Models catalog id). Object.values(PROVIDERS) iteration order put
+  // "kilo" before "github", so every GitHub-chain call was silently matched
+  // to Kilo's config instead -- sent to Kilo's endpoint with Kilo's key,
+  // which had a negative balance, producing a confusing 402 "Low Credit
+  // Warning" that looked like a GitHub Models failure. Root-caused via
+  // Railway deployment logs showing the exact Kilo-formatted error body
+  // coming back for a nominally-"github" fallback hop.
+  for (const name of PROVIDER_ORDER) {
+    const p = PROVIDERS[name];
+    if (p.models[0]?.id === modelId) return p;
+  }
+  // Second pass: any provider's any model -- covers explicit/manual model
+  // selection (e.g. a user picking a non-primary Kilo model by id in the UI).
   for (const p of Object.values(PROVIDERS)) {
     if (p.models.some((m) => m.id === modelId)) return p;
   }
