@@ -376,6 +376,12 @@ export async function executeTask(
       result.jobs = results;
       result.files = results.flatMap(r => r.output?.files || []);
       result.summary = summary;
+      if (result.files.length === 0) {
+        const reasons = results
+          .map((r: any) => r.status === "failed" ? `${r.agent}: ${r.error || "unknown error"}` : null)
+          .filter(Boolean);
+        throw new Error(`Epic build produced no files. ${reasons.join(" | ") || "All workers returned empty output."}`);
+      }
 
     } else {
       // moderate or complex
@@ -384,6 +390,12 @@ export async function executeTask(
       result.jobs = jobs;
       result.files = jobs.flatMap(r => r.output?.files || []);
       result.summary = summary;
+      if (result.files.length === 0) {
+        const reasons = jobs
+          .map((r: any) => r.status === "failed" ? `${r.agent}: ${r.error || "unknown error"}` : null)
+          .filter(Boolean);
+        throw new Error(`Build produced no files. ${reasons.join(" | ") || "All workers returned empty output."}`);
+      }
     }
   } catch (err: any) {
     result.summary = `Failed: ${err?.message || "unknown error"}`;

@@ -82,7 +82,7 @@ export function registerParallelRoutes(app: Express) {
       const sid = sessionId || randomUUID();
 
       // Stream progress events back via SSE bus
-      const result = await executeTask(goal, {
+      const result: any = await executeTask(goal, {
         model,
         sessionId: sid,
         onProgress: (msg) => {
@@ -92,6 +92,13 @@ export function registerParallelRoutes(app: Express) {
           workerBus.emit("superagent:classified", { sessionId: sid, classification });
         },
       });
+
+      // executeTask() catches internal errors into result.summary rather than throwing,
+      // so a real failure (e.g. "no files produced") must be detected here too -
+      // otherwise this endpoint reports HTTP 200 success on a failed build.
+      if (typeof result?.summary === "string" && result.summary.startsWith("Failed:")) {
+        return res.status(500).json({ error: result.summary, ...result });
+      }
 
       res.json(result);
     } catch (err: any) {
