@@ -227,7 +227,7 @@ export default function LandingPage() {
       <section className="mx-auto max-w-6xl px-6 pb-20">
         <div className="mb-10 text-center">
           <h2 className="text-2xl font-bold text-white sm:text-3xl">
-            21 agents, organized like a real eng team
+            21 agents, organized like a real engineering team
           </h2>
           <p className="mt-3 text-slate-400">
             Every category has a job. Nothing is a generic do-everything prompt.
