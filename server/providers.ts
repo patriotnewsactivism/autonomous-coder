@@ -121,11 +121,13 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
     apiKeyEnv: ["CEREBRAS_API_KEY"],
     endpoint: () => process.env.CEREBRAS_ENDPOINT || "https://api.cerebras.ai/v1/chat/completions",
     models: [
-      // 8B first: Cerebras free-tier keys often only have access to this model,
-      // not the 70B one — putting 70B first caused hard 404 "no access" failures
-      // whenever it was the only active provider in the fallback chain.
-      { id: "llama3.1-8b", label: "Llama 3.1 8B (Cerebras)", contextWindow: 8192, pricing: [0, 0] },
-      { id: "llama-3.3-70b", label: "Llama 3.3 70B (Cerebras, requires elevated access)", contextWindow: 128000, pricing: [0, 0] },
+      // Cerebras fully retired its Llama 3.x lineup (llama3.1-8b / llama-3.3-70b
+      // both now hard 404 "model_not_found" on this account) in favor of these
+      // three -- live-verified 2026-07-22 via GET /v1/models on this exact key,
+      // and gpt-oss-120b confirmed with a real chat/completions 200.
+      { id: "gpt-oss-120b", label: "GPT-OSS 120B (Cerebras)", contextWindow: 128000, pricing: [0, 0] },
+      { id: "zai-glm-4.7", label: "Zai GLM 4.7 (Cerebras)", contextWindow: 128000, pricing: [0, 0] },
+      { id: "gemma-4-31b", label: "Gemma 4 31B (Cerebras)", contextWindow: 128000, pricing: [0, 0] },
     ],
     isFree: true,
   },
