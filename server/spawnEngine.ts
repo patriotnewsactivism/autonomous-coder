@@ -119,9 +119,15 @@ export async function executeSpawnPlan(
     const results = await runParallelWorkers(jobs);
 
     // Collect outputs
+    const batchFailures: string[] = [];
     results.forEach((r, ri) => {
       const shardIdx = ready[Math.floor(ri / ready[0].shard.agents.length)]?.i;
       const files = r.output?.files || [];
+      if (r.status === "failed") {
+        batchFailures.push(`${r.agent}: ${r.error || "unknown error"}`);
+      } else if (files.length === 0) {
+        batchFailures.push(`${r.agent}: produced no files (response did not contain a valid files array)`);
+      }
       files.forEach((f: any) => {
         const existing = allFiles.findIndex(x => x.path === f.path);
         if (existing >= 0) allFiles[existing] = f;
@@ -132,12 +138,22 @@ export async function executeSpawnPlan(
         executed.add(shardIdx);
       }
     });
+    if (batchFailures.length > 0) {
+      workerBus.emit("spawn:warning", { sessionId, failures: batchFailures });
+    }
 
     // Emit live preview update
     workerBus.emit("sandbox:update", { sessionId, files: allFiles });
   }
 
   workerBus.emit("spawn:complete", { sessionId, fileCount: allFiles.length });
+  if (allFiles.length === 0) {
+    throw new Error(
+      "No files were generated. All agent workers failed to produce parseable output " +
+      "(the AI likely returned prose instead of the required JSON files array, or every provider call failed). " +
+      "Check server logs / worker:failed events for the specific per-agent error."
+    );
+  }
   return allFiles;
 }
 
@@ -166,13 +182,29 @@ export async function quickSpawn(
   const results = await runParallelWorkers(jobs);
 
   const allFiles: Array<{ path: string; content: string }> = [];
+  const failures: string[] = [];
   results.forEach(r => {
-    (r.output?.files || []).forEach((f: any) => {
+    const files = r.output?.files || [];
+    if (r.status === "failed") {
+      failures.push(`${r.agent}: ${r.error || "unknown error"}`);
+    } else if (files.length === 0) {
+      failures.push(`${r.agent}: produced no files (response did not contain a valid files array)`);
+    }
+    files.forEach((f: any) => {
       const idx = allFiles.findIndex(x => x.path === f.path);
       if (idx >= 0) allFiles[idx] = f;
       else allFiles.push(f);
     });
   });
+
+  if (failures.length > 0) {
+    workerBus.emit("spawn:warning", { sessionId, failures });
+  }
+  if (allFiles.length === 0) {
+    throw new Error(
+      `No files were generated. Failures: ${failures.join(" | ") || "unknown"}`
+    );
+  }
 
   workerBus.emit("sandbox:update", { sessionId, files: allFiles });
   return allFiles;
