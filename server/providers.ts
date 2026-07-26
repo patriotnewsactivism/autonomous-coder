@@ -210,7 +210,15 @@ export function getActiveProviders(): ProviderName[] {
   return (Object.keys(PROVIDERS) as ProviderName[]).filter((n) => isProviderActive(n));
 }
 
-const PROVIDER_ORDER: ProviderName[] = ["qwen", "gemini", "deepseek", "kilo", "mistral", "groq", "cerebras", "github", "cohere", "openrouter"];
+// Reordered 2026-07-26: qwen and mistral confirmed 100% dead via live
+// API test the same day (Qwen: "Incorrect API key provided" on every
+// cached key variant; Mistral: 401 Unauthorized) -- zero working
+// replacement available anywhere in the credential pool. groq/cerebras/
+// cohere confirmed live via direct completion calls the same day, moved
+// to the front so requests don't waste attempts on guaranteed failures.
+// qwen/mistral kept later in the chain as harmless no-ops -- instant
+// recovery with zero code change if fresh keys are ever rotated in.
+const PROVIDER_ORDER: ProviderName[] = ["groq", "cerebras", "cohere", "gemini", "deepseek", "kilo", "github", "qwen", "mistral", "openrouter"];
 
 function findProviderForModel(modelId: string): ProviderConfig | null {
   // First pass: match each provider's PRIMARY (fallback-chain) model only, in
