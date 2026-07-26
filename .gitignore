@@ -41,3 +41,4 @@ autonomous-coder/
 # Vendor bundles
 ds-bundle/
 .vite/
+cli/
