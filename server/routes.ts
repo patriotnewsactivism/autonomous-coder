@@ -492,12 +492,16 @@ export async function registerRoutes(app: Express): Promise<void> {
         Accept: "application/vnd.github.v3+json",
         "User-Agent": "Autonomous-Code-Wizard",
       };
-      if (token) headers.Authorization = `Bearer ${token}`;
 
       let url: string;
       if (token) {
+        headers.Authorization = `Bearer ${token}`;
         url = "https://api.github.com/user/repos?sort=updated&per_page=50";
       } else if (username) {
+        // Username-browse still has no personal token, but fall back to the server's own
+        // token so this doesn't compete with import calls for the same 60/hour unauthenticated quota.
+        const serverToken = process.env.GITHUB_TOKEN_4 || process.env.GITHUB_TOKEN;
+        if (serverToken) headers.Authorization = `Bearer ${serverToken}`;
         url = `https://api.github.com/users/${encodeURIComponent(username)}/repos?sort=updated&per_page=50`;
       } else {
         return res.status(400).json({ error: "Provide a GitHub token (for your repos) or a username (to browse public repos)." });
@@ -645,7 +649,14 @@ export async function registerRoutes(app: Express): Promise<void> {
         Accept: "application/vnd.github.v3+json",
         "User-Agent": "Autonomous-Coder",
       };
-      if (token) headers.Authorization = `Bearer ${token}`;
+      // Unauthenticated GitHub API calls share a 60-req/hour-per-IP quota, and a single
+      // repo import can easily fire 100+ calls (metadata + tree + one content fetch per
+      // file) -- guaranteed to rate-limit on anything but a tiny repo. Fall back to the
+      // server's own token (same one used for AI-agent GitHub features) so public-repo
+      // imports get the authenticated 5000/hour quota by default, without requiring the
+      // user to paste their own PAT for every public repo.
+      const importToken = token || process.env.GITHUB_TOKEN_4 || process.env.GITHUB_TOKEN;
+      if (importToken) headers.Authorization = `Bearer ${importToken}`;
 
       // Get repo metadata (also verifies it exists and is accessible)
       const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
@@ -739,7 +750,8 @@ export async function registerRoutes(app: Express): Promise<void> {
         Accept: "application/vnd.github.v3+json",
         "User-Agent": "Autonomous-Coder",
       };
-      if (token) headers.Authorization = `Bearer ${token}`;
+      const importToken = token || process.env.GITHUB_TOKEN_4 || process.env.GITHUB_TOKEN;
+      if (importToken) headers.Authorization = `Bearer ${importToken}`;
 
       // Get default branch
       const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
