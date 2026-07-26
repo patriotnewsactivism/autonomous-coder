@@ -230,15 +230,20 @@ export function getActiveProviders(): ProviderName[] {
   return (Object.keys(PROVIDERS) as ProviderName[]).filter((n) => isProviderActive(n));
 }
 
-// Reordered 2026-07-26: qwen and mistral confirmed 100% dead via live
-// API test the same day (Qwen: "Incorrect API key provided" on every
-// cached key variant; Mistral: 401 Unauthorized) -- zero working
-// replacement available anywhere in the credential pool. groq/cerebras/
-// cohere confirmed live via direct completion calls the same day, moved
-// to the front so requests don't waste attempts on guaranteed failures.
-// qwen/mistral kept later in the chain as harmless no-ops -- instant
-// recovery with zero code change if fresh keys are ever rotated in.
-const PROVIDER_ORDER: ProviderName[] = ["groq", "cerebras", "cohere", "gemini", "deepseek", "kilo", "xai", "github", "qwen", "mistral", "openrouter"];
+// 2026-07-26: per explicit instruction ("remove models that keep returning
+// errors, get them out"), removed qwen (401 "Incorrect API key"), mistral
+// (401 Unauthorized), and kilo (402, negative Kilo Code account balance)
+// entirely from the active order -- all three confirmed erroring against
+// THIS service's actual configured keys, not assumed from memory. gemini/
+// deepseek/xai are left in: none have a key configured on this Railway
+// service at all, so they're already silent no-ops (never make a live API
+// call, never error) rather than active failures -- harmless, and recover
+// instantly with zero code change if a key is ever added. github kept:
+// got a Cloudflare "Too many requests" during this same audit, which reads
+// as rate-limiting from repeated testing today rather than a genuine
+// per-token block (unlike qwen/mistral/kilo's clean, structured error
+// responses) -- not removing on an inconclusive signal.
+const PROVIDER_ORDER: ProviderName[] = ["groq", "cerebras", "cohere", "gemini", "deepseek", "xai", "github", "openrouter"];
 
 function findProviderForModel(modelId: string): ProviderConfig | null {
   // First pass: match each provider's PRIMARY (fallback-chain) model only, in
