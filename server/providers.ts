@@ -2,7 +2,7 @@
  * Multi-provider AI gateway — supports DeepSeek, Kilo Gateway, Groq, Google Gemini,
  * Cerebras, GitHub Models, and Cohere.
  *
- * Cascade order: Gemini → DeepSeek → Kilo → Groq → Cerebras → GitHub → Cohere
+ * Cascade order: Qwen Cloud (coding default, paid) → Gemini → DeepSeek → Kilo → Mistral → Groq → Cerebras → GitHub → Cohere → OpenRouter (free)
  *
  * Kilo Gateway (api.kilo.ai) is OpenAI-compatible and routes to 100+ models:
  *   claude-sonnet-4, gpt-5.5, gemini-3.1-pro-preview, kilo/auto, and more.
@@ -210,7 +210,7 @@ export function getActiveProviders(): ProviderName[] {
   return (Object.keys(PROVIDERS) as ProviderName[]).filter((n) => isProviderActive(n));
 }
 
-const PROVIDER_ORDER: ProviderName[] = ["gemini", "deepseek", "kilo", "mistral", "groq", "cerebras", "github", "qwen", "cohere", "openrouter"];
+const PROVIDER_ORDER: ProviderName[] = ["qwen", "gemini", "deepseek", "kilo", "mistral", "groq", "cerebras", "github", "cohere", "openrouter"];
 
 function findProviderForModel(modelId: string): ProviderConfig | null {
   // First pass: match each provider's PRIMARY (fallback-chain) model only, in
@@ -243,7 +243,7 @@ function findProviderForModel(modelId: string): ProviderConfig | null {
 
 export function getFallbackChain(): string[] {
   const chain: string[] = [];
-  const order: ProviderName[] = ["gemini", "deepseek", "kilo", "mistral", "groq", "cerebras", "github", "qwen", "cohere", "openrouter"];
+  const order: ProviderName[] = ["qwen", "gemini", "deepseek", "kilo", "mistral", "groq", "cerebras", "github", "cohere", "openrouter"];
   for (const name of order) {
     if (!isProviderActive(name)) continue;
     const primary = PROVIDERS[name].models[0];
