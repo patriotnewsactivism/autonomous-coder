@@ -1,6 +1,6 @@
 /**
  * Multi-provider AI gateway — supports DeepSeek, Kilo Gateway, Groq, Google Gemini,
- * Cerebras, GitHub Models, and Cohere.
+ * Cerebras, GitHub Models, Cohere, and xAI (Grok).
  *
  * Cascade order: Qwen Cloud (coding default, paid) → Gemini → DeepSeek → Kilo → Mistral → Groq → Cerebras → GitHub → Cohere → OpenRouter (free)
  *
@@ -10,7 +10,7 @@
 
 // ── Provider configs ────────────────────────────────────────────────────────
 
-export type ProviderName = "deepseek" | "kilo" | "groq" | "gemini" | "cerebras" | "github" | "cohere" | "mistral" | "qwen" | "openrouter";
+export type ProviderName = "deepseek" | "kilo" | "groq" | "gemini" | "cerebras" | "github" | "cohere" | "mistral" | "qwen" | "xai" | "openrouter";
 
 interface ProviderConfig {
   name: ProviderName;
@@ -198,6 +198,26 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
     ],
     isFree: false,
   },
+
+  // xAI (Grok) -- added 2026-07-26. Fully OpenAI-compatible, no special
+  // buildRequest/parseResponse branch needed (falls through to the default
+  // OpenAI-compatible path like groq/cerebras/deepseek). NOTE: confirmed via
+  // live test the same day that this account's team credits/spending limit
+  // is currently exhausted (permission-denied) -- key itself is valid, this
+  // is a billing gate, not a dead key. Harmless no-op in the chain until
+  // Don adds credits/raises the limit; will start working immediately once
+  // that happens, no code change needed.
+  xai: {
+    name: "xai",
+    label: "xAI (Grok)",
+    apiKeyEnv: ["XAI_API_KEY"],
+    endpoint: "https://api.x.ai/v1/chat/completions",
+    models: [
+      { id: "grok-3-fast", label: "Grok 3 Fast (xAI)", contextWindow: 131072, pricing: [3.0, 15.0] },
+      { id: "grok-4", label: "Grok 4 (xAI)", contextWindow: 256000, pricing: [5.0, 25.0] },
+    ],
+    isFree: false,
+  },
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -218,7 +238,7 @@ export function getActiveProviders(): ProviderName[] {
 // to the front so requests don't waste attempts on guaranteed failures.
 // qwen/mistral kept later in the chain as harmless no-ops -- instant
 // recovery with zero code change if fresh keys are ever rotated in.
-const PROVIDER_ORDER: ProviderName[] = ["groq", "cerebras", "cohere", "gemini", "deepseek", "kilo", "github", "qwen", "mistral", "openrouter"];
+const PROVIDER_ORDER: ProviderName[] = ["groq", "cerebras", "cohere", "gemini", "deepseek", "kilo", "xai", "github", "qwen", "mistral", "openrouter"];
 
 function findProviderForModel(modelId: string): ProviderConfig | null {
   // First pass: match each provider's PRIMARY (fallback-chain) model only, in
@@ -461,7 +481,7 @@ export function buildRequest(
   if (provider.name === "cohere") {
     return buildCohereRequest(provider, modelId, systemPrompt, userMessage, maxTokens, stream, apiKeyOverride);
   }
-  // OpenAI-compatible: deepseek, kilo, groq, cerebras, github
+  // OpenAI-compatible: deepseek, kilo, groq, cerebras, github, xai
   return buildOpenAIRequest(provider, modelId, systemPrompt, userMessage, maxTokens, stream, apiKeyOverride);
 }
 
