@@ -197,6 +197,7 @@ const VibeCoding = () => {
   const [sessionCost, setSessionCost] = useState(getSessionCost);
   const [lastProjectId, setLastProjectId] = useState<number | null>(null);
   const [selectedModel, setSelectedModelState] = useState(getSelectedModel);
+  const [recommendedModel, setRecommendedModel] = useState<string>("");
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [modelPricing, setModelPricing] = useState<Record<string, { input: number; output: number }>>({});
   const [showModelMenu, setShowModelMenu] = useState(false);
@@ -221,6 +222,7 @@ const VibeCoding = () => {
     fetchModels().then((data) => {
       setAvailableModels(data.models);
       setModelPricing(data.pricing);
+      if (data.default) setRecommendedModel(data.default);
       if (!getSelectedModel() && data.default) {
         setSelectedModel(data.default);
         setSelectedModelState(data.default);
@@ -803,7 +805,18 @@ const VibeCoding = () => {
                 <ChevronDown className="h-3 w-3" />
               </button>
               {showModelMenu && (
-                <div className="absolute top-full mt-1 left-0 z-50 min-w-[180px] bg-popover border border-border rounded-lg shadow-xl p-1 max-h-60 overflow-y-auto">
+                <div className="absolute top-full mt-1 left-0 z-50 min-w-[200px] bg-popover border border-border rounded-lg shadow-xl p-1 max-h-72 overflow-y-auto overscroll-contain">
+                  {recommendedModel && selectedModel !== recommendedModel && (
+                    <button
+                      onClick={() => {
+                        setSelectedModel(recommendedModel); setSelectedModelState(recommendedModel); setShowModelMenu(false);
+                      }}
+                      className="w-full text-left px-3 py-1.5 mb-1 rounded-md text-xs flex items-center gap-1.5 bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      <span>Use Recommended ({recommendedModel})</span>
+                    </button>
+                  )}
                   {availableModels.map(m => {
                     const exhausted = isModelExhausted(m);
                     return (

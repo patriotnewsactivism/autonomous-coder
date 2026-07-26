@@ -243,8 +243,7 @@ function findProviderForModel(modelId: string): ProviderConfig | null {
 
 export function getFallbackChain(): string[] {
   const chain: string[] = [];
-  const order: ProviderName[] = ["qwen", "gemini", "deepseek", "kilo", "mistral", "groq", "cerebras", "github", "cohere", "openrouter"];
-  for (const name of order) {
+  for (const name of PROVIDER_ORDER) {
     if (!isProviderActive(name)) continue;
     const primary = PROVIDERS[name].models[0];
     if (primary) chain.push(primary.id);
@@ -262,7 +261,8 @@ export function getFallbackModel(currentModel: string): string | null {
 
 export function getAvailableModels(): { id: string; label: string; provider: string; isFree: boolean; contextWindow: number }[] {
   const models: { id: string; label: string; provider: string; isFree: boolean; contextWindow: number }[] = [];
-  for (const p of Object.values(PROVIDERS)) {
+  for (const name of PROVIDER_ORDER) {
+    const p = PROVIDERS[name];
     if (!isProviderActive(p.name)) continue;
     for (const m of p.models) {
       models.push({ id: m.id, label: m.label, provider: p.label, isFree: p.isFree, contextWindow: m.contextWindow });
@@ -273,7 +273,8 @@ export function getAvailableModels(): { id: string; label: string; provider: str
 
 export function getModelPricing(): Record<string, { input: number; output: number; isFree: boolean }> {
   const pricing: Record<string, { input: number; output: number; isFree: boolean }> = {};
-  for (const p of Object.values(PROVIDERS)) {
+  for (const name of PROVIDER_ORDER) {
+    const p = PROVIDERS[name];
     if (!isProviderActive(p.name)) continue;
     for (const m of p.models) {
       pricing[m.id] = { input: m.pricing[0], output: m.pricing[1], isFree: p.isFree };
