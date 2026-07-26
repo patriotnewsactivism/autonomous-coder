@@ -1,8 +1,8 @@
 /**
  * Multi-provider AI gateway — supports DeepSeek, Kilo Gateway, Groq, Google Gemini,
- * Cerebras, GitHub Models, and Cohere.
+ * Cerebras, GitHub Models, Cohere, and xAI (Grok).
  *
- * Cascade order: Gemini → DeepSeek → Kilo → Groq → Cerebras → GitHub → Cohere
+ * Cascade order: Qwen Cloud (coding default, paid) → Gemini → DeepSeek → Kilo → Mistral → Groq → Cerebras → GitHub → Cohere → OpenRouter (free)
  *
  * Kilo Gateway (api.kilo.ai) is OpenAI-compatible and routes to 100+ models:
  *   claude-sonnet-4, gpt-5.5, gemini-3.1-pro-preview, kilo/auto, and more.
@@ -10,7 +10,7 @@
 
 // ── Provider configs ────────────────────────────────────────────────────────
 
-export type ProviderName = "deepseek" | "kilo" | "groq" | "gemini" | "cerebras" | "github" | "cohere" | "mistral" | "qwen" | "openrouter";
+export type ProviderName = "deepseek" | "kilo" | "groq" | "gemini" | "cerebras" | "github" | "cohere" | "mistral" | "qwen" | "xai" | "openrouter";
 
 interface ProviderConfig {
   name: ProviderName;
@@ -198,6 +198,26 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
     ],
     isFree: false,
   },
+
+  // xAI (Grok) -- added 2026-07-26. Fully OpenAI-compatible, no special
+  // buildRequest/parseResponse branch needed (falls through to the default
+  // OpenAI-compatible path like groq/cerebras/deepseek). NOTE: confirmed via
+  // live test the same day that this account's team credits/spending limit
+  // is currently exhausted (permission-denied) -- key itself is valid, this
+  // is a billing gate, not a dead key. Harmless no-op in the chain until
+  // Don adds credits/raises the limit; will start working immediately once
+  // that happens, no code change needed.
+  xai: {
+    name: "xai",
+    label: "xAI (Grok)",
+    apiKeyEnv: ["XAI_API_KEY"],
+    endpoint: "https://api.x.ai/v1/chat/completions",
+    models: [
+      { id: "grok-3-fast", label: "Grok 3 Fast (xAI)", contextWindow: 131072, pricing: [3.0, 15.0] },
+      { id: "grok-4", label: "Grok 4 (xAI)", contextWindow: 256000, pricing: [5.0, 25.0] },
+    ],
+    isFree: false,
+  },
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -210,7 +230,22 @@ export function getActiveProviders(): ProviderName[] {
   return (Object.keys(PROVIDERS) as ProviderName[]).filter((n) => isProviderActive(n));
 }
 
-const PROVIDER_ORDER: ProviderName[] = ["gemini", "deepseek", "kilo", "mistral", "groq", "cerebras", "github", "qwen", "cohere", "openrouter"];
+// 2026-07-26: per explicit instruction ("remove models that keep returning
+// errors, get them out"), removed qwen (401 "Incorrect API key"), mistral
+// (401 Unauthorized), and kilo (402, negative Kilo Code account balance)
+// entirely from the active order -- all three confirmed erroring against
+// THIS service's actual configured keys, not assumed from memory. gemini/
+// deepseek/xai are left in: none have a key configured on this Railway
+// service at all, so they're already silent no-ops (never make a live API
+// call, never error) rather than active failures -- harmless, and recover
+// instantly with zero code change if a key is ever added. github kept:
+// got a Cloudflare "Too many requests" during this same audit, which reads
+// as rate-limiting from repeated testing today rather than a genuine
+// per-token block (unlike qwen/mistral/kilo's clean, structured error
+// responses) -- not removing on an inconclusive signal.
+// mistral RE-ADDED 2026-07-26: Don rotated a fresh key same-day, confirmed
+// live via direct completion call before re-adding.
+const PROVIDER_ORDER: ProviderName[] = ["groq", "cerebras", "cohere", "mistral", "gemini", "deepseek", "xai", "github", "openrouter"];
 
 function findProviderForModel(modelId: string): ProviderConfig | null {
   // First pass: match each provider's PRIMARY (fallback-chain) model only, in
@@ -243,8 +278,7 @@ function findProviderForModel(modelId: string): ProviderConfig | null {
 
 export function getFallbackChain(): string[] {
   const chain: string[] = [];
-  const order: ProviderName[] = ["gemini", "deepseek", "kilo", "mistral", "groq", "cerebras", "github", "qwen", "cohere", "openrouter"];
-  for (const name of order) {
+  for (const name of PROVIDER_ORDER) {
     if (!isProviderActive(name)) continue;
     const primary = PROVIDERS[name].models[0];
     if (primary) chain.push(primary.id);
@@ -262,7 +296,8 @@ export function getFallbackModel(currentModel: string): string | null {
 
 export function getAvailableModels(): { id: string; label: string; provider: string; isFree: boolean; contextWindow: number }[] {
   const models: { id: string; label: string; provider: string; isFree: boolean; contextWindow: number }[] = [];
-  for (const p of Object.values(PROVIDERS)) {
+  for (const name of PROVIDER_ORDER) {
+    const p = PROVIDERS[name];
     if (!isProviderActive(p.name)) continue;
     for (const m of p.models) {
       models.push({ id: m.id, label: m.label, provider: p.label, isFree: p.isFree, contextWindow: m.contextWindow });
@@ -273,7 +308,8 @@ export function getAvailableModels(): { id: string; label: string; provider: str
 
 export function getModelPricing(): Record<string, { input: number; output: number; isFree: boolean }> {
   const pricing: Record<string, { input: number; output: number; isFree: boolean }> = {};
-  for (const p of Object.values(PROVIDERS)) {
+  for (const name of PROVIDER_ORDER) {
+    const p = PROVIDERS[name];
     if (!isProviderActive(p.name)) continue;
     for (const m of p.models) {
       pricing[m.id] = { input: m.pricing[0], output: m.pricing[1], isFree: p.isFree };
@@ -452,7 +488,7 @@ export function buildRequest(
   if (provider.name === "cohere") {
     return buildCohereRequest(provider, modelId, systemPrompt, userMessage, maxTokens, stream, apiKeyOverride);
   }
-  // OpenAI-compatible: deepseek, kilo, groq, cerebras, github
+  // OpenAI-compatible: deepseek, kilo, groq, cerebras, github, xai
   return buildOpenAIRequest(provider, modelId, systemPrompt, userMessage, maxTokens, stream, apiKeyOverride);
 }
 

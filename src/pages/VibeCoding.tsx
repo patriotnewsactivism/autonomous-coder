@@ -4,7 +4,7 @@ import {
   Coins, RotateCcw, ChevronDown, ChevronLeft, DollarSign, Save,
   FolderGit2, AlertTriangle, Rocket, GitBranch, CheckCircle2,
   XCircle, Upload, RefreshCw, Eye, Terminal, Zap, Play, Code2,
-  Info, ChevronUp, Minimize2, Maximize2
+  Info, ChevronUp, Minimize2, Maximize2, Search
 } from "lucide-react";
 import Header from "@/components/Header";
 import VibeInput, { BuildMode, ProjectType } from "@/components/agents/VibeInput";
@@ -197,6 +197,7 @@ const VibeCoding = () => {
   const [sessionCost, setSessionCost] = useState(getSessionCost);
   const [lastProjectId, setLastProjectId] = useState<number | null>(null);
   const [selectedModel, setSelectedModelState] = useState(getSelectedModel);
+  const [recommendedModel, setRecommendedModel] = useState<string>("");
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [modelPricing, setModelPricing] = useState<Record<string, { input: number; output: number }>>({});
   const [showModelMenu, setShowModelMenu] = useState(false);
@@ -221,6 +222,7 @@ const VibeCoding = () => {
     fetchModels().then((data) => {
       setAvailableModels(data.models);
       setModelPricing(data.pricing);
+      if (data.default) setRecommendedModel(data.default);
       if (!getSelectedModel() && data.default) {
         setSelectedModel(data.default);
         setSelectedModelState(data.default);
@@ -795,7 +797,7 @@ const VibeCoding = () => {
             <div className="relative flex-shrink-0">
               <button
                 onClick={() => setShowModelMenu(!showModelMenu)}
-                className="flex items-center gap-1.5 px-2.5 py-2 sm:py-1.5 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground hover:bg-muted/60"
+                className="flex items-center gap-1.5 px-2.5 py-2 sm:py-1.5 rounded-lg bg-card border border-border shadow-sm text-xs text-muted-foreground hover:border-primary/40 transition-colors"
                 title="Select AI model"
               >
                 <Brain className="h-3.5 w-3.5 text-purple-400" />
@@ -803,7 +805,18 @@ const VibeCoding = () => {
                 <ChevronDown className="h-3 w-3" />
               </button>
               {showModelMenu && (
-                <div className="absolute top-full mt-1 left-0 z-50 min-w-[180px] bg-popover border border-border rounded-lg shadow-xl p-1 max-h-60 overflow-y-auto">
+                <div className="absolute top-full mt-1 left-0 z-50 min-w-[200px] bg-popover border border-border rounded-lg shadow-xl p-1 max-h-72 overflow-y-auto overscroll-contain">
+                  {recommendedModel && selectedModel !== recommendedModel && (
+                    <button
+                      onClick={() => {
+                        setSelectedModel(recommendedModel); setSelectedModelState(recommendedModel); setShowModelMenu(false);
+                      }}
+                      className="w-full text-left px-3 py-1.5 mb-1 rounded-md text-xs flex items-center gap-1.5 bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      <span>Use Recommended ({recommendedModel})</span>
+                    </button>
+                  )}
                   {availableModels.map(m => {
                     const exhausted = isModelExhausted(m);
                     return (
@@ -847,7 +860,7 @@ const VibeCoding = () => {
             {/* Import Repo button — always shows label */}
             <button
               onClick={() => setShowImportDialog(true)}
-              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-colors text-xs font-medium"
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-lg bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors text-xs font-medium"
             >
               <FolderGit2 className="h-3.5 w-3.5" />
               <span>Import</span>
@@ -876,7 +889,7 @@ const VibeCoding = () => {
 
           {/* Row 2: cost + status — scrollable on mobile */}
           <div className="flex items-center gap-2 mt-1.5 overflow-x-auto no-scrollbar">
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-lg border border-border/30 flex-shrink-0">
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-card px-2 py-1 rounded-lg border border-border/60 shadow-sm flex-shrink-0">
               <DollarSign className="h-3 w-3 text-emerald-400" />
               <span className="font-mono">{formatCost(sessionCost)}</span>
               <span className="opacity-40">·</span>
@@ -887,10 +900,13 @@ const VibeCoding = () => {
               </button>
             </div>
             {searchStatus && (
-              <div className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border flex-shrink-0 ${
-                searchStatus.tavily ? "text-cyan-400 bg-cyan-500/10 border-cyan-500/20" : "text-muted-foreground bg-muted/30 border-border/30"
-              }`}>
-                <span>{searchStatus.tavily ? "🔍 Live" : "🔍 DDG"}</span>
+              <div
+                title={searchStatus.tavily ? "Live web search (Tavily)" : "Web search (DuckDuckGo fallback)"}
+                className={`flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-lg border flex-shrink-0 ${
+                  searchStatus.tavily ? "text-cyan-400 bg-cyan-500/10 border-cyan-500/20" : "text-muted-foreground bg-card border-border/60"
+                }`}>
+                <Search className="h-3 w-3" />
+                <span>{searchStatus.tavily ? "Live Search" : "Web Search"}</span>
               </div>
             )}
             {autoSaved && (
@@ -935,7 +951,7 @@ const VibeCoding = () => {
                     <span className="text-sm font-medium text-primary">21 AI Agents Ready</span>
                   </div>
 
-                  <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground text-center mb-3 leading-tight">
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold gradient-text text-center mb-3 leading-tight">
                     What do you want to build?
                   </h2>
                   <p className="text-sm text-muted-foreground text-center max-w-md mb-8 leading-relaxed">
@@ -946,7 +962,7 @@ const VibeCoding = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg mb-10">
                     <button
                       onClick={() => setShowImportDialog(true)}
-                      className="flex items-center gap-3 p-4 rounded-xl border border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 transition-all text-left group"
+                      className="feature-card flex items-center gap-3 p-4 rounded-xl border border-border bg-card shadow-lg hover:-translate-y-0.5 text-left group"
                     >
                       <div className="flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 border border-primary/30 group-hover:bg-primary/20">
                         <FolderGit2 className="h-5 w-5 text-primary" />
@@ -963,7 +979,7 @@ const VibeCoding = () => {
                         const textarea = document.querySelector('textarea[placeholder]') as HTMLTextAreaElement;
                         if (textarea) textarea.focus();
                       }}
-                      className="flex items-center gap-3 p-4 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 hover:border-border transition-all text-left group"
+                      className="feature-card flex items-center gap-3 p-4 rounded-xl border border-border bg-card shadow-lg hover:-translate-y-0.5 text-left group"
                     >
                       <div className="flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-lg bg-violet-500/10 border border-violet-500/30 group-hover:bg-violet-500/20">
                         <Sparkles className="h-5 w-5 text-violet-400" />
@@ -984,7 +1000,7 @@ const VibeCoding = () => {
                         { step: "2", icon: Code2, title: "Build", desc: "Specialized agents write & review code" },
                         { step: "3", icon: Eye, title: "Preview", desc: "Watch your app build in a live sandbox" },
                       ].map(({ step, icon: StepIcon, title, desc }) => (
-                        <div key={step} className="flex flex-col items-center text-center p-3 rounded-lg bg-muted/20 border border-border/30">
+                        <div key={step} className="flex flex-col items-center text-center p-4 rounded-lg bg-card border border-border shadow-sm">
                           <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 border border-primary/20 text-primary font-bold text-sm mb-2">
                             {step}
                           </div>
