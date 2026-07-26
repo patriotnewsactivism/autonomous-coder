@@ -243,7 +243,9 @@ export function getActiveProviders(): ProviderName[] {
 // as rate-limiting from repeated testing today rather than a genuine
 // per-token block (unlike qwen/mistral/kilo's clean, structured error
 // responses) -- not removing on an inconclusive signal.
-const PROVIDER_ORDER: ProviderName[] = ["groq", "cerebras", "cohere", "gemini", "deepseek", "xai", "github", "openrouter"];
+// mistral RE-ADDED 2026-07-26: Don rotated a fresh key same-day, confirmed
+// live via direct completion call before re-adding.
+const PROVIDER_ORDER: ProviderName[] = ["groq", "cerebras", "cohere", "mistral", "gemini", "deepseek", "xai", "github", "openrouter"];
 
 function findProviderForModel(modelId: string): ProviderConfig | null {
   // First pass: match each provider's PRIMARY (fallback-chain) model only, in
