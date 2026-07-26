@@ -1,32 +1,32 @@
-import { AgentType } from "@/lib/agents";
+import { AgentType, getSelectedModel } from "@/lib/agents";
 import {
   Brain, Code2, Database, Globe, Layers, Shield, Zap, Rocket,
   CheckCircle2, XCircle, Loader2, Clock, Search, Map, FileText,
   Smartphone, BarChart3, Accessibility, BookOpen, TrendingUp, FlaskConical
 } from "lucide-react";
 
-const AGENT_META: Record<AgentType, { icon: any; label: string; color: string; category: string; model?: string }> = {
-  orchestrator:  { icon: Brain,         label: "Orchestrator",  color: "text-purple-400",  category: "Core",       model: "DeepSeek V4 Pro" },
-  strategist:    { icon: Map,           label: "Strategist",    color: "text-blue-400",    category: "Core",       model: "DeepSeek Flash" },
-  researcher:    { icon: Search,        label: "Researcher",    color: "text-cyan-400",    category: "Research",   model: "DeepSeek V4 Pro" },
-  architect:     { icon: Layers,        label: "Architect",     color: "text-indigo-400",  category: "Research",   model: "DeepSeek V4 Pro" },
-  analyst:       { icon: BarChart3,     label: "Analyst",       color: "text-sky-400",     category: "Research",   model: "DeepSeek V4 Pro" },
-  database:      { icon: Database,      label: "Database",      color: "text-amber-400",   category: "Build",      model: "DeepSeek Flash" },
-  api:           { icon: Globe,         label: "API",           color: "text-green-400",   category: "Build",      model: "DeepSeek Flash" },
-  ui:            { icon: Layers,        label: "UI/UX",         color: "text-pink-400",    category: "Build",      model: "DeepSeek Flash" },
-  builder:       { icon: Code2,         label: "Builder",       color: "text-violet-400",  category: "Build",      model: "DeepSeek Flash" },
-  mobile:        { icon: Smartphone,    label: "Mobile",        color: "text-fuchsia-400", category: "Build",      model: "DeepSeek Flash" },
-  testing:       { icon: FlaskConical,  label: "Testing",       color: "text-yellow-400",  category: "Quality",    model: "DeepSeek Flash" },
-  security:      { icon: Shield,        label: "Security",      color: "text-red-400",     category: "Quality",    model: "DeepSeek V4 Pro" },
-  performance:   { icon: Zap,           label: "Performance",   color: "text-orange-400",  category: "Quality",    model: "DeepSeek V4 Pro" },
-  seo:           { icon: TrendingUp,    label: "SEO",           color: "text-lime-400",    category: "Polish",     model: "Kilo Auto" },
-  a11y:          { icon: Accessibility, label: "Accessibility", color: "text-teal-400",    category: "Polish",     model: "Kilo Auto" },
-  docs:          { icon: BookOpen,      label: "Docs",          color: "text-slate-400",   category: "Polish",     model: "Kilo Auto" },
-  optimizer:     { icon: TrendingUp,    label: "Optimizer",     color: "text-emerald-400", category: "Polish",     model: "Kilo Auto" },
-  reviewer:      { icon: CheckCircle2,  label: "Reviewer",      color: "text-blue-400",    category: "Review",     model: "DeepSeek V4 Pro" },
-  fixer:         { icon: Zap,           label: "Fixer",         color: "text-orange-400",  category: "Review",     model: "DeepSeek Flash" },
-  refiner:       { icon: FileText,      label: "Refiner",       color: "text-purple-300",  category: "Review",     model: "DeepSeek Flash" },
-  deployer:      { icon: Rocket,        label: "Deployer",      color: "text-green-500",   category: "Deploy",     model: "DeepSeek Flash" },
+const AGENT_META: Record<AgentType, { icon: any; label: string; color: string; category: string }> = {
+  orchestrator:  { icon: Brain,         label: "Orchestrator",  color: "text-purple-400",  category: "Core" },
+  strategist:    { icon: Map,           label: "Strategist",    color: "text-blue-400",    category: "Core" },
+  researcher:    { icon: Search,        label: "Researcher",    color: "text-cyan-400",    category: "Research" },
+  architect:     { icon: Layers,        label: "Architect",     color: "text-indigo-400",  category: "Research" },
+  analyst:       { icon: BarChart3,     label: "Analyst",       color: "text-sky-400",     category: "Research" },
+  database:      { icon: Database,      label: "Database",      color: "text-amber-400",   category: "Build" },
+  api:           { icon: Globe,         label: "API",           color: "text-green-400",   category: "Build" },
+  ui:            { icon: Layers,        label: "UI/UX",         color: "text-pink-400",    category: "Build" },
+  builder:       { icon: Code2,         label: "Builder",       color: "text-violet-400",  category: "Build" },
+  mobile:        { icon: Smartphone,    label: "Mobile",        color: "text-fuchsia-400", category: "Build" },
+  testing:       { icon: FlaskConical,  label: "Testing",       color: "text-yellow-400",  category: "Quality" },
+  security:      { icon: Shield,        label: "Security",      color: "text-red-400",     category: "Quality" },
+  performance:   { icon: Zap,           label: "Performance",   color: "text-orange-400",  category: "Quality" },
+  seo:           { icon: TrendingUp,    label: "SEO",           color: "text-lime-400",    category: "Polish" },
+  a11y:          { icon: Accessibility, label: "Accessibility", color: "text-teal-400",    category: "Polish" },
+  docs:          { icon: BookOpen,      label: "Docs",          color: "text-slate-400",   category: "Polish" },
+  optimizer:     { icon: TrendingUp,    label: "Optimizer",     color: "text-emerald-400", category: "Polish" },
+  reviewer:      { icon: CheckCircle2,  label: "Reviewer",      color: "text-blue-400",    category: "Review" },
+  fixer:         { icon: Zap,           label: "Fixer",         color: "text-orange-400",  category: "Review" },
+  refiner:       { icon: FileText,      label: "Refiner",       color: "text-purple-300",  category: "Review" },
+  deployer:      { icon: Rocket,        label: "Deployer",      color: "text-green-500",   category: "Deploy" },
 };
 
 const CATEGORY_ORDER = ["Core", "Research", "Build", "Quality", "Polish", "Review", "Deploy"];
@@ -58,8 +58,8 @@ function AgentBadge({ agent, status }: { agent: AgentType; status: "waiting" | "
       <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
       <span className="text-xs font-medium text-slate-300">{meta.label}</span>
       {statusIcon}
-      {meta.model && status !== "waiting" && (
-        <span className="text-[10px] text-slate-500 hidden md:inline">{meta.model}</span>
+      {status !== "waiting" && (
+        <span className="text-[10px] text-slate-500 hidden md:inline">{getSelectedModel() || "Auto"}</span>
       )}
     </div>
   );
