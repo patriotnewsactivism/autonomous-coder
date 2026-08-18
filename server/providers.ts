@@ -10,7 +10,7 @@
 
 // ── Provider configs ────────────────────────────────────────────────────────
 
-export type ProviderName = "deepseek" | "kilo" | "groq" | "gemini" | "cerebras" | "github" | "cohere" | "mistral" | "qwen" | "xai" | "openrouter";
+export type ProviderName = "deepseek" | "kilo" | "groq" | "gemini" | "cerebras" | "cohere" | "mistral" | "qwen" | "xai" | "openrouter";
 
 interface ProviderConfig {
   name: ProviderName;
@@ -132,27 +132,17 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
     isFree: true,
   },
 
-  github: {
-    // Old models.inference.ai.azure.com endpoint + gpt-4o/Phi-4/DeepSeek-R1 IDs
-    // were dead (GitHub Models migrated to models.github.ai; those specific
-    // model IDs are no longer valid there). Repointed to the current endpoint
-    // + org/model-id format, and to GITHUB_TOKEN_4 (the PAT already
-    // provisioned across this ecosystem) instead of the never-configured
-    // GITHUB_TOKEN/GITHUB_MODELS_TOKEN. Model IDs live-verified 2026-07-20 on
-    // this token's access tier -- gpt-5-mini/o4-mini/deepseek-r1 all returned
-    // "Unavailable model" on this tier and are intentionally left out.
-    name: "github",
-    label: "GitHub Models (Free)",
-    apiKeyEnv: ["GITHUB_TOKEN_4", "GITHUB_TOKEN", "GITHUB_MODELS_TOKEN"],
-    endpoint: "https://models.github.ai/inference/chat/completions",
-    models: [
-      { id: "openai/gpt-4.1", label: "GPT-4.1 (GitHub)", contextWindow: 128000, pricing: [0, 0] },
-      { id: "mistral-ai/codestral-2501", label: "Codestral 25.01 (GitHub)", contextWindow: 32000, pricing: [0, 0] },
-      { id: "meta/llama-4-maverick-17b-128e-instruct-fp8", label: "Llama 4 Maverick (GitHub)", contextWindow: 128000, pricing: [0, 0] },
-    ],
-    isFree: true,
-  },
-
+  // github (GitHub Models) provider REMOVED 2026-08-17: GitHub permanently
+  // shut down the entire GitHub Models service (models.github.ai) on
+  // 2026-07-30 -- inference API, playground, model catalog, and BYOK
+  // endpoints all retired for every customer, confirmed via GitHub's own
+  // changelog. Not a rate limit or model-specific deprecation, a full
+  // service retirement with no successor endpoint -- GitHub's own guidance
+  // points migrators at Microsoft Foundry instead, a different product with
+  // different auth/model-id shape, not a drop-in replacement. Root cause of
+  // live "AI error (openai/gpt-4.1): 410" failures in Code Wizard build
+  // runs after that date. Do not re-add without a genuine new endpoint --
+  // models.github.ai will 410 Gone forever.
   cohere: {
     name: "cohere",
     label: "Cohere (Free Trial)",
@@ -238,14 +228,14 @@ export function getActiveProviders(): ProviderName[] {
 // deepseek/xai are left in: none have a key configured on this Railway
 // service at all, so they're already silent no-ops (never make a live API
 // call, never error) rather than active failures -- harmless, and recover
-// instantly with zero code change if a key is ever added. github kept:
-// got a Cloudflare "Too many requests" during this same audit, which reads
-// as rate-limiting from repeated testing today rather than a genuine
-// per-token block (unlike qwen/mistral/kilo's clean, structured error
-// responses) -- not removing on an inconclusive signal.
+// instantly with zero code change if a key is ever added.
+// github REMOVED 2026-08-17 (see provider-config comment above): GitHub
+// Models is permanently retired as of 2026-07-30, not a rate-limit blip --
+// the 2026-07-26 "inconclusive signal, keep it" call was reasonable at the
+// time but is now overtaken by GitHub's own shutdown announcement.
 // mistral RE-ADDED 2026-07-26: Don rotated a fresh key same-day, confirmed
 // live via direct completion call before re-adding.
-const PROVIDER_ORDER: ProviderName[] = ["groq", "cerebras", "cohere", "mistral", "gemini", "deepseek", "xai", "github", "openrouter"];
+const PROVIDER_ORDER: ProviderName[] = ["groq", "cerebras", "cohere", "mistral", "gemini", "deepseek", "xai", "openrouter"];
 
 function findProviderForModel(modelId: string): ProviderConfig | null {
   // First pass: match each provider's PRIMARY (fallback-chain) model only, in
@@ -254,16 +244,14 @@ function findProviderForModel(modelId: string): ProviderConfig | null {
   // secondary/manual-select model list happens to reuse the same raw
   // upstream id string.
   //
-  // Concretely: Kilo Gateway exposes "openai/gpt-4.1" as one of its manual
-  // model options (real id, "via Kilo"). GitHub Models' OWN primary
-  // fallback-chain model also happens to be "openai/gpt-4.1" (its real
-  // GitHub Models catalog id). Object.values(PROVIDERS) iteration order put
-  // "kilo" before "github", so every GitHub-chain call was silently matched
-  // to Kilo's config instead -- sent to Kilo's endpoint with Kilo's key,
-  // which had a negative balance, producing a confusing 402 "Low Credit
-  // Warning" that looked like a GitHub Models failure. Root-caused via
-  // Railway deployment logs showing the exact Kilo-formatted error body
-  // coming back for a nominally-"github" fallback hop.
+  // Historical note: Kilo Gateway exposes "openai/gpt-4.1" as one of its
+  // manual model options (real id, "via Kilo"). GitHub Models' own primary
+  // fallback-chain model used to be the same raw id, which caused a real
+  // id-collision bug back when both providers existed side by side (fixed
+  // via this per-provider PRIMARY-model-first matching pass). github itself
+  // was removed entirely 2026-08-17 (permanent GitHub Models shutdown), but
+  // this comment is kept because "kilo" still owns "openai/gpt-4.1" and the
+  // matching-order guarantee below is still load-bearing for that reason.
   for (const name of PROVIDER_ORDER) {
     const p = PROVIDERS[name];
     if (p.models[0]?.id === modelId) return p;
@@ -339,7 +327,6 @@ const PROVIDER_SIGNUP_URLS: Record<ProviderName, string> = {
   groq: "https://console.groq.com/keys",
   gemini: "https://aistudio.google.com/apikey",
   cerebras: "https://cloud.cerebras.ai",
-  github: "https://github.com/settings/tokens",
   cohere: "https://dashboard.cohere.com/api-keys",
   mistral: "https://console.mistral.ai",
   qwen: "https://modelstudio.console.alibabacloud.com",
@@ -352,7 +339,6 @@ const PROVIDER_ENV_VARS: Record<ProviderName, string> = {
   groq: "GROQ_API_KEY",
   gemini: "GEMINI_API_KEY (or GOOGLE_API_KEY)",
   cerebras: "CEREBRAS_API_KEY",
-  github: "GITHUB_TOKEN_4 (or GITHUB_TOKEN / GITHUB_MODELS_TOKEN)",
   cohere: "COHERE_API_KEY",
   mistral: "MISTRAL_API_KEY",
   qwen: "QWENCLOUD_API_KEY",
@@ -488,7 +474,7 @@ export function buildRequest(
   if (provider.name === "cohere") {
     return buildCohereRequest(provider, modelId, systemPrompt, userMessage, maxTokens, stream, apiKeyOverride);
   }
-  // OpenAI-compatible: deepseek, kilo, groq, cerebras, github, xai
+  // OpenAI-compatible: deepseek, kilo, groq, cerebras, xai
   return buildOpenAIRequest(provider, modelId, systemPrompt, userMessage, maxTokens, stream, apiKeyOverride);
 }
 
@@ -523,7 +509,7 @@ export function parseResponse(
       completionTokens: usage.billed_units?.output_tokens || usage.tokens?.output_tokens || 0,
     };
   }
-  // OpenAI-compatible (deepseek, kilo, groq, cerebras, github)
+  // OpenAI-compatible (deepseek, kilo, groq, cerebras)
   const content = data.choices?.[0]?.message?.content || "";
   const usage = data.usage || {};
   return {
@@ -555,7 +541,7 @@ export function parseStreamChunk(providerName: ProviderName, line: string): stri
         || null;
     } catch { return null; }
   }
-  // OpenAI-compatible (deepseek, kilo, groq, cerebras, github)
+  // OpenAI-compatible (deepseek, kilo, groq, cerebras)
   if (!line.startsWith("data: ")) return null;
   const payload = line.slice(6).trim();
   if (payload === "[DONE]") return null;
