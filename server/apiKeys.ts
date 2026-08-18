@@ -7,7 +7,8 @@
  * (XOR + base64) — never returned in plaintext after save.
  *
  * Supported providers (matches server/providers.ts):
- *   deepseek, kilo, groq, gemini, cerebras, github, cohere
+ *   deepseek, kilo, groq, gemini, cerebras, cohere
+ *   (github/GitHub Models removed 2026-08-17 -- service permanently retired 2026-07-30)
  */
 
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
@@ -68,9 +69,9 @@ function maskKey(key: string): string {
 // ─── PROVIDER VALIDATION ──────────────────────────────────────────────────────
 // Matches the provider set in server/providers.ts
 
-export type ByokProvider = "deepseek" | "kilo" | "groq" | "gemini" | "cerebras" | "github" | "cohere";
+export type ByokProvider = "deepseek" | "kilo" | "groq" | "gemini" | "cerebras" | "cohere";
 
-const VALID_PROVIDERS: ByokProvider[] = ["deepseek", "kilo", "groq", "gemini", "cerebras", "github", "cohere"];
+const VALID_PROVIDERS: ByokProvider[] = ["deepseek", "kilo", "groq", "gemini", "cerebras", "cohere"];
 
 const PROVIDER_VALIDATION_ENDPOINTS: Record<ByokProvider, { url: string; model: string; kind: "openai" | "gemini" | "cohere" }> = {
   deepseek: { url: "https://api.deepseek.com/v1/chat/completions", model: "deepseek-chat", kind: "openai" },
@@ -78,7 +79,6 @@ const PROVIDER_VALIDATION_ENDPOINTS: Record<ByokProvider, { url: string; model: 
   groq: { url: "https://api.groq.com/openai/v1/chat/completions", model: "llama-3.3-70b-versatile", kind: "openai" },
   gemini: { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", model: "gemini-2.0-flash", kind: "gemini" },
   cerebras: { url: "https://api.cerebras.ai/v1/chat/completions", model: "llama3.1-8b", kind: "openai" },
-  github: { url: "https://models.github.ai/inference/chat/completions", model: "openai/gpt-4.1", kind: "openai" }, // migrated endpoint -- old azure endpoint + gpt-4o-mini id are dead
   cohere: { url: "https://api.cohere.com/v2/chat", model: "command-r", kind: "cohere" },
 };
 
