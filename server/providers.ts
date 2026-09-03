@@ -1,8 +1,14 @@
 /**
- * Multi-provider AI gateway — supports DeepSeek, Kilo Gateway, Groq, Google Gemini,
- * Cerebras, GitHub Models, Cohere, and xAI (Grok).
+ * Multi-provider AI gateway — supports OpenRouter (paid+free), Google Gemini,
+ * Cohere, Groq, DeepSeek, Kilo Gateway, Cerebras, Mistral, Qwen, and xAI (Grok).
  *
- * Cascade order: Qwen Cloud (coding default, paid) → Gemini → DeepSeek → Kilo → Mistral → Groq → Cerebras → GitHub → Cohere → OpenRouter (free)
+ * Active cascade order (rebuilt 2026-09-03 from a real live audit, not memory):
+ *   OpenRouter Paid (cheap, reliable) → Gemini (free) → Cohere (trial-key
+ *   fallback) → Groq (fixed model ids) → OpenRouter Free (last resort).
+ * Out of the active chain (confirmed billing-dead/invalid-key 2026-09-03, but
+ * config kept in case Don resolves billing): Cerebras (402), Mistral (402),
+ * DeepSeek (401 invalid key), Kilo (402 negative balance), Qwen/xAI (no key
+ * configured on this service at all).
  *
  * Kilo Gateway (api.kilo.ai) is OpenAI-compatible and routes to 100+ models:
  *   claude-sonnet-4, gpt-5.5, gemini-3.1-pro-preview, kilo/auto, and more.
@@ -10,7 +16,7 @@
 
 // ── Provider configs ────────────────────────────────────────────────────────
 
-export type ProviderName = "deepseek" | "kilo" | "groq" | "gemini" | "cerebras" | "cohere" | "mistral" | "qwen" | "xai" | "openrouter";
+export type ProviderName = "deepseek" | "kilo" | "groq" | "gemini" | "cerebras" | "cohere" | "mistral" | "qwen" | "xai" | "openrouter" | "openrouterPaid";
 
 interface ProviderConfig {
   name: ProviderName;
@@ -76,6 +82,27 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
   // Only 2 genuinely free (:free-suffixed) models kept -- verified live
   // against openrouter.ai/api/v1/models 2026-07-22; OpenRouter's free catalog
   // rotates over time so this list may need revisiting later.
+  // OpenRouter PAID -- added 2026-09-03 per Don's explicit request for cheap,
+  // reliable paid units instead of depending on flaky/billing-exhausted free
+  // tiers (Cerebras/Mistral/Cohere-prod/Kilo/DeepSeek all confirmed billing-
+  // dead or invalid-key the same day). Uses OPENROUTER_API_KEY (the ORIGINAL
+  // OPENROUTER_API_KEY env var was found corrupted -- literally held a model
+  // id string, not a key -- fixed to the real sk-or-v1-... value). All 3
+  // models below live-tested 2026-09-03 with a real completion call against
+  // the real account (confirmed ~$9.73 balance remaining of $20 total).
+  openrouterPaid: {
+    name: "openrouterPaid",
+    label: "OpenRouter (Paid, cheap)",
+    apiKeyEnv: ["OPENROUTER_API_KEY"],
+    endpoint: "https://openrouter.ai/api/v1/chat/completions",
+    models: [
+      { id: "deepseek/deepseek-chat-v3.1", label: "DeepSeek Chat V3.1 (OpenRouter)", contextWindow: 164000, pricing: [0.27, 1.10] },
+      { id: "qwen/qwen3-coder-30b-a3b-instruct", label: "Qwen3 Coder 30B (OpenRouter)", contextWindow: 262000, pricing: [0.10, 0.30] },
+      { id: "meta-llama/llama-3.3-70b-instruct", label: "Llama 3.3 70B Instruct (OpenRouter)", contextWindow: 131000, pricing: [0.12, 0.30] },
+    ],
+    isFree: false,
+  },
+
   openrouter: {
     name: "openrouter",
     label: "OpenRouter (Free)",
@@ -94,10 +121,15 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
     apiKeyEnv: ["GROQ_API_KEY"],
     endpoint: () => process.env.GROQ_ENDPOINT || "https://api.groq.com/openai/v1/chat/completions",
     models: [
-      { id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B", contextWindow: 128000, pricing: [0.59, 0.79] },
-      { id: "llama-3.1-8b-instant", label: "Llama 3.1 8B Instant", contextWindow: 128000, pricing: [0.05, 0.08] },
-      { id: "qwen-2.5-coder-32b", label: "Qwen 2.5 Coder 32B", contextWindow: 128000, pricing: [0.59, 0.79] },
-      { id: "mixtral-8x7b-32768", label: "Mixtral 8x7B", contextWindow: 32768, pricing: [0.24, 0.24] },
+      // Live-verified via GET https://api.groq.com/openai/v1/models on this
+      // exact key, 2026-09-03 -- the old llama-3.3-70b-versatile/llama-3.1-8b-
+      // instant/qwen-2.5-coder-32b/mixtral-8x7b-32768 ids are ALL gone from
+      // this account's catalog (this is what made DEFAULT_MODEL resolve to a
+      // dead 404 model and broke SuperAgent/every unrouted call).
+      { id: "openai/gpt-oss-120b", label: "GPT-OSS 120B (Groq)", contextWindow: 128000, pricing: [0, 0] },
+      { id: "openai/gpt-oss-20b", label: "GPT-OSS 20B (Groq)", contextWindow: 128000, pricing: [0, 0] },
+      { id: "qwen/qwen3.8-27b", label: "Qwen3.8 27B (Groq)", contextWindow: 128000, pricing: [0, 0] },
+      { id: "groq/compound", label: "Groq Compound (agentic, tool-using)", contextWindow: 128000, pricing: [0, 0] },
     ],
     isFree: true,
   },
@@ -146,7 +178,10 @@ const PROVIDERS: Record<ProviderName, ProviderConfig> = {
   cohere: {
     name: "cohere",
     label: "Cohere (Free Trial)",
-    apiKeyEnv: ["COHERE_API_KEY"],
+    // COHERE_API_KEY (prod tier) is billing-blocked (402, "add payment method")
+    // as of 2026-09-03 live test. COHERE_TRIAL_API_KEY confirmed LIVE the same
+    // day via a real completion call -- try prod first, fall back to trial.
+    apiKeyEnv: ["COHERE_API_KEY", "COHERE_TRIAL_API_KEY"],
     endpoint: "https://api.cohere.com/v2/chat",
     models: [
       { id: "north-mini-code-1-0", label: "North Mini Code 1.0 (Cohere) 🧠", contextWindow: 256000, pricing: [0, 0] },
@@ -235,7 +270,14 @@ export function getActiveProviders(): ProviderName[] {
 // time but is now overtaken by GitHub's own shutdown announcement.
 // mistral RE-ADDED 2026-07-26: Don rotated a fresh key same-day, confirmed
 // live via direct completion call before re-adding.
-const PROVIDER_ORDER: ProviderName[] = ["groq", "cerebras", "cohere", "mistral", "gemini", "deepseek", "xai", "openrouter"];
+// Rebuilt 2026-09-03 after a full live audit (real completion calls against
+// every configured key, not memory): cerebras/mistral/deepseek/kilo are all
+// currently billing-dead or invalid-key (402/401) despite having keys set --
+// the old order put dead groq/cerebras models FIRST, which is why
+// DEFAULT_MODEL resolved to a 404 and broke every unrouted call including
+// SuperAgent's classifier. openrouterPaid leads now: reliable, cheap, real
+// balance. gemini/cohere/groq are genuinely free+live as backups.
+const PROVIDER_ORDER: ProviderName[] = ["openrouterPaid", "gemini", "cohere", "groq", "openrouter"];
 
 function findProviderForModel(modelId: string): ProviderConfig | null {
   // First pass: match each provider's PRIMARY (fallback-chain) model only, in
