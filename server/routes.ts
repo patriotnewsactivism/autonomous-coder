@@ -376,7 +376,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const pricing = getModelPricing();
     res.json({
       models: modelIds,
-      default: DEFAULT_MODEL || "deepseek-chat",
+      default: DEFAULT_MODEL || "anthropic/claude-sonnet-4.5",
       pricing,
       providers: modelList.map(m => ({
         id: m.id,

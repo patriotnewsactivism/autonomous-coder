@@ -1,29 +1,44 @@
 /**
- * Multi-provider AI gateway — supports OpenRouter (paid+free), Google Gemini,
- * Cohere, Groq, DeepSeek, Kilo Gateway, Cerebras, Mistral, Qwen, and xAI (Grok).
+ * AI gateway — standardized on OpenRouter only, 2026-09-04, per Don's explicit
+ * direction: "run off of openrouter models. a proven llm that works. get rid
+ * of all old unverified models that are not openrouter."
  *
- * Active cascade order (rebuilt 2026-09-03 from a real live audit, not memory):
- *   OpenRouter Paid (cheap, reliable) → Gemini (free) → Cohere (trial-key
- *   fallback) → Groq (fixed model ids) → OpenRouter Free (last resort).
- * Out of the active chain (confirmed billing-dead/invalid-key 2026-09-03, but
- * config kept in case Don resolves billing): Cerebras (402), Mistral (402),
- * DeepSeek (401 invalid key), Kilo (402 negative balance), Qwen/xAI (no key
- * configured on this service at all).
+ * Root cause of prior instability: this service's dedicated OpenRouter key
+ * shared an OpenRouter ACCOUNT with codeforge-v2's key — that account's
+ * $16.45 balance was fully drained ($16.65 used), so every other provider in
+ * the old 10-provider cascade (Cerebras/Mistral/DeepSeek/Kilo/Qwen/xAI/GitHub
+ * Models/Cohere/Groq/Gemini free tiers) was being leaned on as a patchwork of
+ * flaky, rate-limited, or billing-dead fallbacks. Switched to a SEPARATE,
+ * healthy OpenRouter account (~$9.71 of $20 remaining as of 2026-09-04) and
+ * removed every other provider entirely — no more fallback chain, no more
+ * whack-a-mole across a dozen free tiers.
  *
- * Kilo Gateway (api.kilo.ai) is OpenAI-compatible and routes to 100+ models:
- *   claude-sonnet-4, gpt-5.5, gemini-3.1-pro-preview, kilo/auto, and more.
+ * Model: anthropic/claude-sonnet-4.5 — live-tested 2026-09-04 with a real
+ * completion call against this exact key/account before shipping this file
+ * (confirmed 200, real billed cost). Well-established, strong at coding
+ * tasks, reasonably priced ($3/$15 per M tokens) relative to Opus.
+ *
+ * NOTE: server/apiKeys.ts (end-user BYOK feature) is a SEPARATE, unrelated
+ * system for customers who supply their own third-party keys — intentionally
+ * NOT touched by this change, which only concerns THIS service's own default
+ * serving infrastructure.
  */
 
-// ── Provider configs ────────────────────────────────────────────────────────
+export type ProviderName = "openrouter";
 
-export type ProviderName = "deepseek" | "kilo" | "groq" | "gemini" | "cerebras" | "cohere" | "mistral" | "qwen" | "xai" | "openrouter" | "openrouterPaid";
+interface ModelConfig {
+  id: string;
+  label: string;
+  contextWindow: number;
+  pricing: [number, number]; // [inputPer1M, outputPer1M] USD
+}
 
 interface ProviderConfig {
   name: ProviderName;
   label: string;
   apiKeyEnv: string[];
-  endpoint: string | (() => string);
-  models: { id: string; label: string; contextWindow: number; pricing: [number, number] }[];
+  endpoint: string;
+  models: ModelConfig[];
   isFree: boolean;
 }
 
@@ -37,213 +52,25 @@ function getApiKey(name: ProviderName): string {
 }
 
 function getEndpoint(name: ProviderName): string {
-  const ep = PROVIDERS[name].endpoint;
-  if (typeof ep === "function") return ep();
-  return ep;
+  return PROVIDERS[name].endpoint;
 }
 
 const PROVIDERS: Record<ProviderName, ProviderConfig> = {
-  deepseek: {
-    name: "deepseek",
-    label: "DeepSeek",
-    apiKeyEnv: ["DEEPSEEK_API_KEY"],
-    endpoint: () => process.env.DEEPSEEK_ENDPOINT || "https://api.deepseek.com/v1/chat/completions",
-    models: [
-      { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash", contextWindow: 1000000, pricing: [0.14, 0.28] },
-      { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro", contextWindow: 1000000, pricing: [0.435, 0.87] },
-      // Legacy aliases kept for backward compat (deprecated 2026-07-24)
-      { id: "deepseek-chat", label: "DeepSeek Chat (legacy)", contextWindow: 64000, pricing: [0.14, 0.28] },
-      { id: "deepseek-reasoner", label: "DeepSeek Reasoner (legacy)", contextWindow: 64000, pricing: [0.55, 2.19] },
-    ],
-    isFree: false,
-  },
-
-  kilo: {
-    name: "kilo",
-    label: "Kilo Gateway",
-    apiKeyEnv: ["KILOCODE_API_KEY", "KILO_API_KEY"],
-    endpoint: "https://api.kilo.ai/api/gateway/chat/completions",
-    models: [
-      // Smart router — Kilo picks the best model automatically
-      { id: "kilo/auto", label: "Kilo Auto (Smart Route)", contextWindow: 1000000, pricing: [0, 0] },
-      // Premium models via Kilo
-      { id: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4 (via Kilo)", contextWindow: 200000, pricing: [3.0, 15.0] },
-      { id: "anthropic/claude-opus-4", label: "Claude Opus 4 (via Kilo)", contextWindow: 200000, pricing: [15.0, 75.0] },
-      { id: "openai/gpt-5.5", label: "GPT-5.5 (via Kilo)", contextWindow: 256000, pricing: [2.5, 10.0] },
-      { id: "openai/gpt-4.1", label: "GPT-4.1 (via Kilo)", contextWindow: 1000000, pricing: [2.0, 8.0] },
-      { id: "google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (via Kilo)", contextWindow: 1000000, pricing: [0, 0] },
-      { id: "deepseek/deepseek-v4-pro", label: "DeepSeek V4 Pro (via Kilo)", contextWindow: 1000000, pricing: [0.435, 0.87] },
-    ],
-    isFree: false,
-  },
-
-  // OpenRouter -- added 2026-07-22, FREE tier only. Fully OpenAI-compatible
-  // (no special buildRequest/parseResponse branch needed, unlike gemini/cohere).
-  // Only 2 genuinely free (:free-suffixed) models kept -- verified live
-  // against openrouter.ai/api/v1/models 2026-07-22; OpenRouter's free catalog
-  // rotates over time so this list may need revisiting later.
-  // OpenRouter PAID -- added 2026-09-03 per Don's explicit request for cheap,
-  // reliable paid units instead of depending on flaky/billing-exhausted free
-  // tiers (Cerebras/Mistral/Cohere-prod/Kilo/DeepSeek all confirmed billing-
-  // dead or invalid-key the same day). Uses OPENROUTER_API_KEY (the ORIGINAL
-  // OPENROUTER_API_KEY env var was found corrupted -- literally held a model
-  // id string, not a key -- fixed to the real sk-or-v1-... value). All 3
-  // models below live-tested 2026-09-03 with a real completion call against
-  // the real account (confirmed ~$9.73 balance remaining of $20 total).
-  openrouterPaid: {
-    name: "openrouterPaid",
-    label: "OpenRouter (Paid, cheap)",
-    apiKeyEnv: ["OPENROUTER_API_KEY"],
-    endpoint: "https://openrouter.ai/api/v1/chat/completions",
-    models: [
-      { id: "deepseek/deepseek-chat-v3.1", label: "DeepSeek Chat V3.1 (OpenRouter)", contextWindow: 164000, pricing: [0.27, 1.10] },
-      { id: "qwen/qwen3-coder-30b-a3b-instruct", label: "Qwen3 Coder 30B (OpenRouter)", contextWindow: 262000, pricing: [0.10, 0.30] },
-      { id: "meta-llama/llama-3.3-70b-instruct", label: "Llama 3.3 70B Instruct (OpenRouter)", contextWindow: 131000, pricing: [0.12, 0.30] },
-    ],
-    isFree: false,
-  },
-
   openrouter: {
     name: "openrouter",
-    label: "OpenRouter (Free)",
+    label: "OpenRouter",
     apiKeyEnv: ["OPENROUTER_API_KEY"],
     endpoint: "https://openrouter.ai/api/v1/chat/completions",
     models: [
-      { id: "openai/gpt-oss-20b:free", label: "GPT-OSS 20B (OpenRouter Free)", contextWindow: 128000, pricing: [0, 0] },
-      { id: "nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 3 Super 120B (OpenRouter Free)", contextWindow: 128000, pricing: [0, 0] },
-    ],
-    isFree: true,
-  },
-
-  groq: {
-    name: "groq",
-    label: "Groq (Free)",
-    apiKeyEnv: ["GROQ_API_KEY"],
-    endpoint: () => process.env.GROQ_ENDPOINT || "https://api.groq.com/openai/v1/chat/completions",
-    models: [
-      // Live-verified via GET https://api.groq.com/openai/v1/models on this
-      // exact key, 2026-09-03 -- the old llama-3.3-70b-versatile/llama-3.1-8b-
-      // instant/qwen-2.5-coder-32b/mixtral-8x7b-32768 ids are ALL gone from
-      // this account's catalog (this is what made DEFAULT_MODEL resolve to a
-      // dead 404 model and broke SuperAgent/every unrouted call).
-      { id: "openai/gpt-oss-120b", label: "GPT-OSS 120B (Groq)", contextWindow: 128000, pricing: [0, 0] },
-      { id: "openai/gpt-oss-20b", label: "GPT-OSS 20B (Groq)", contextWindow: 128000, pricing: [0, 0] },
-      { id: "qwen/qwen3.8-27b", label: "Qwen3.8 27B (Groq)", contextWindow: 128000, pricing: [0, 0] },
-      { id: "groq/compound", label: "Groq Compound (agentic, tool-using)", contextWindow: 128000, pricing: [0, 0] },
-    ],
-    isFree: true,
-  },
-
-  gemini: {
-    name: "gemini",
-    label: "Google Gemini (Free Tier)",
-    apiKeyEnv: ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
-    endpoint: "https://generativelanguage.googleapis.com/v1beta",
-    models: [
-      { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash", contextWindow: 1000000, pricing: [0, 0] },
-      { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash", contextWindow: 1000000, pricing: [0, 0] },
-      { id: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash-Lite", contextWindow: 1000000, pricing: [0, 0] },
-    ],
-    isFree: true,
-  },
-
-  cerebras: {
-    name: "cerebras",
-    label: "Cerebras (Free)",
-    apiKeyEnv: ["CEREBRAS_API_KEY"],
-    endpoint: () => process.env.CEREBRAS_ENDPOINT || "https://api.cerebras.ai/v1/chat/completions",
-    models: [
-      // Cerebras fully retired its Llama 3.x lineup (llama3.1-8b / llama-3.3-70b
-      // both now hard 404 "model_not_found" on this account) in favor of these
-      // three -- live-verified 2026-07-22 via GET /v1/models on this exact key,
-      // and gpt-oss-120b confirmed with a real chat/completions 200.
-      { id: "gpt-oss-120b", label: "GPT-OSS 120B (Cerebras)", contextWindow: 128000, pricing: [0, 0] },
-      { id: "zai-glm-4.7", label: "Zai GLM 4.7 (Cerebras)", contextWindow: 128000, pricing: [0, 0] },
-      { id: "gemma-4-31b", label: "Gemma 4 31B (Cerebras)", contextWindow: 128000, pricing: [0, 0] },
-    ],
-    isFree: true,
-  },
-
-  // github (GitHub Models) provider REMOVED 2026-08-17: GitHub permanently
-  // shut down the entire GitHub Models service (models.github.ai) on
-  // 2026-07-30 -- inference API, playground, model catalog, and BYOK
-  // endpoints all retired for every customer, confirmed via GitHub's own
-  // changelog. Not a rate limit or model-specific deprecation, a full
-  // service retirement with no successor endpoint -- GitHub's own guidance
-  // points migrators at Microsoft Foundry instead, a different product with
-  // different auth/model-id shape, not a drop-in replacement. Root cause of
-  // live "AI error (openai/gpt-4.1): 410" failures in Code Wizard build
-  // runs after that date. Do not re-add without a genuine new endpoint --
-  // models.github.ai will 410 Gone forever.
-  cohere: {
-    name: "cohere",
-    label: "Cohere (Free Trial)",
-    // COHERE_API_KEY (prod tier) is billing-blocked (402, "add payment method")
-    // as of 2026-09-03 live test. COHERE_TRIAL_API_KEY confirmed LIVE the same
-    // day via a real completion call -- try prod first, fall back to trial.
-    apiKeyEnv: ["COHERE_API_KEY", "COHERE_TRIAL_API_KEY"],
-    endpoint: "https://api.cohere.com/v2/chat",
-    models: [
-      { id: "north-mini-code-1-0", label: "North Mini Code 1.0 (Cohere) 🧠", contextWindow: 256000, pricing: [0, 0] },
-      { id: "command-a-03-2025", label: "Command A (Cohere)", contextWindow: 256000, pricing: [0, 0] },
-      { id: "command-r-plus-08-2024", label: "Command R+ (Cohere)", contextWindow: 128000, pricing: [0, 0] },
-    ],
-    isFree: true,
-  },
-
-  mistral: {
-    name: "mistral",
-    label: "Mistral AI",
-    apiKeyEnv: ["MISTRAL_API_KEY"],
-    endpoint: "https://api.mistral.ai/v1/chat/completions",
-    models: [
-      // Devstral: Mistral's purpose-built agentic coding model (multi-file edits, tool use).
-      { id: "devstral-2512", label: "Devstral (Mistral) — agentic coding", contextWindow: 256000, pricing: [0.4, 2.0] },
-      // Codestral: Mistral's code-completion/review-focused model.
-      { id: "codestral-2508", label: "Codestral (Mistral) — code review", contextWindow: 256000, pricing: [0.3, 0.9] },
-      // High-throughput general default (5 RPS vs mistral-large's 0.07 RPS on this account).
-      { id: "mistral-small-2506", label: "Mistral Small (high-throughput default)", contextWindow: 128000, pricing: [0.1, 0.3] },
-    ],
-    isFree: false,
-  },
-
-  // Qwen Cloud (Alibaba Cloud Model Studio, international dashscope-intl
-  // endpoint) -- PAID pay-as-you-go, NOT the mainland Bailian console (that's
-  // a separate account/URL entirely). Verified live 2026-07-20.
-  qwen: {
-    name: "qwen",
-    label: "Qwen Cloud (Paid)",
-    apiKeyEnv: ["QWENCLOUD_API_KEY"],
-    endpoint: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
-    models: [
-      // Official Alibaba Cloud Model Studio international pricing,
-      // confirmed 2026-07-20: alibabacloud.com/help/en/model-studio/model-pricing
-      { id: "qwen3-coder-plus", label: "Qwen3 Coder Plus", contextWindow: 262144, pricing: [1.0, 5.0] },
-      { id: "qwen-max", label: "Qwen Max", contextWindow: 32000, pricing: [1.6, 6.4] },
-    ],
-    isFree: false,
-  },
-
-  // xAI (Grok) -- added 2026-07-26. Fully OpenAI-compatible, no special
-  // buildRequest/parseResponse branch needed (falls through to the default
-  // OpenAI-compatible path like groq/cerebras/deepseek). NOTE: confirmed via
-  // live test the same day that this account's team credits/spending limit
-  // is currently exhausted (permission-denied) -- key itself is valid, this
-  // is a billing gate, not a dead key. Harmless no-op in the chain until
-  // Don adds credits/raises the limit; will start working immediately once
-  // that happens, no code change needed.
-  xai: {
-    name: "xai",
-    label: "xAI (Grok)",
-    apiKeyEnv: ["XAI_API_KEY"],
-    endpoint: "https://api.x.ai/v1/chat/completions",
-    models: [
-      { id: "grok-3-fast", label: "Grok 3 Fast (xAI)", contextWindow: 131072, pricing: [3.0, 15.0] },
-      { id: "grok-4", label: "Grok 4 (xAI)", contextWindow: 256000, pricing: [5.0, 25.0] },
+      { id: "anthropic/claude-sonnet-4.5", label: "Claude Sonnet 4.5 (OpenRouter) — default", contextWindow: 200000, pricing: [3.0, 15.0] },
+      { id: "anthropic/claude-haiku-4.5", label: "Claude Haiku 4.5 (OpenRouter) — fast/cheap", contextWindow: 200000, pricing: [1.0, 5.0] },
+      { id: "qwen/qwen3-coder-plus", label: "Qwen3 Coder Plus (OpenRouter) — coding specialist", contextWindow: 262000, pricing: [0.65, 3.25] },
     ],
     isFree: false,
   },
 };
+
+const PROVIDER_ORDER: ProviderName[] = ["openrouter"];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -255,52 +82,9 @@ export function getActiveProviders(): ProviderName[] {
   return (Object.keys(PROVIDERS) as ProviderName[]).filter((n) => isProviderActive(n));
 }
 
-// 2026-07-26: per explicit instruction ("remove models that keep returning
-// errors, get them out"), removed qwen (401 "Incorrect API key"), mistral
-// (401 Unauthorized), and kilo (402, negative Kilo Code account balance)
-// entirely from the active order -- all three confirmed erroring against
-// THIS service's actual configured keys, not assumed from memory. gemini/
-// deepseek/xai are left in: none have a key configured on this Railway
-// service at all, so they're already silent no-ops (never make a live API
-// call, never error) rather than active failures -- harmless, and recover
-// instantly with zero code change if a key is ever added.
-// github REMOVED 2026-08-17 (see provider-config comment above): GitHub
-// Models is permanently retired as of 2026-07-30, not a rate-limit blip --
-// the 2026-07-26 "inconclusive signal, keep it" call was reasonable at the
-// time but is now overtaken by GitHub's own shutdown announcement.
-// mistral RE-ADDED 2026-07-26: Don rotated a fresh key same-day, confirmed
-// live via direct completion call before re-adding.
-// Rebuilt 2026-09-03 after a full live audit (real completion calls against
-// every configured key, not memory): cerebras/mistral/deepseek/kilo are all
-// currently billing-dead or invalid-key (402/401) despite having keys set --
-// the old order put dead groq/cerebras models FIRST, which is why
-// DEFAULT_MODEL resolved to a 404 and broke every unrouted call including
-// SuperAgent's classifier. openrouterPaid leads now: reliable, cheap, real
-// balance. gemini/cohere/groq are genuinely free+live as backups.
-const PROVIDER_ORDER: ProviderName[] = ["openrouterPaid", "gemini", "cohere", "groq", "openrouter"];
-
 function findProviderForModel(modelId: string): ProviderConfig | null {
-  // First pass: match each provider's PRIMARY (fallback-chain) model only, in
-  // canonical provider order. This guarantees fallback-chain entries always
-  // resolve to their intended provider even when some OTHER provider's
-  // secondary/manual-select model list happens to reuse the same raw
-  // upstream id string.
-  //
-  // Historical note: Kilo Gateway exposes "openai/gpt-4.1" as one of its
-  // manual model options (real id, "via Kilo"). GitHub Models' own primary
-  // fallback-chain model used to be the same raw id, which caused a real
-  // id-collision bug back when both providers existed side by side (fixed
-  // via this per-provider PRIMARY-model-first matching pass). github itself
-  // was removed entirely 2026-08-17 (permanent GitHub Models shutdown), but
-  // this comment is kept because "kilo" still owns "openai/gpt-4.1" and the
-  // matching-order guarantee below is still load-bearing for that reason.
   for (const name of PROVIDER_ORDER) {
     const p = PROVIDERS[name];
-    if (p.models[0]?.id === modelId) return p;
-  }
-  // Second pass: any provider's any model -- covers explicit/manual model
-  // selection (e.g. a user picking a non-primary Kilo model by id in the UI).
-  for (const p of Object.values(PROVIDERS)) {
     if (p.models.some((m) => m.id === modelId)) return p;
   }
   return null;
@@ -310,8 +94,7 @@ export function getFallbackChain(): string[] {
   const chain: string[] = [];
   for (const name of PROVIDER_ORDER) {
     if (!isProviderActive(name)) continue;
-    const primary = PROVIDERS[name].models[0];
-    if (primary) chain.push(primary.id);
+    for (const m of PROVIDERS[name].models) chain.push(m.id);
   }
   return chain;
 }
@@ -364,26 +147,10 @@ export interface ProviderStatus {
 }
 
 const PROVIDER_SIGNUP_URLS: Record<ProviderName, string> = {
-  deepseek: "https://platform.deepseek.com/api_keys",
-  kilo: "https://app.kilo.ai",
-  groq: "https://console.groq.com/keys",
-  gemini: "https://aistudio.google.com/apikey",
-  cerebras: "https://cloud.cerebras.ai",
-  cohere: "https://dashboard.cohere.com/api-keys",
-  mistral: "https://console.mistral.ai",
-  qwen: "https://modelstudio.console.alibabacloud.com",
   openrouter: "https://openrouter.ai/keys",
 };
 
 const PROVIDER_ENV_VARS: Record<ProviderName, string> = {
-  deepseek: "DEEPSEEK_API_KEY",
-  kilo: "KILOCODE_API_KEY",
-  groq: "GROQ_API_KEY",
-  gemini: "GEMINI_API_KEY (or GOOGLE_API_KEY)",
-  cerebras: "CEREBRAS_API_KEY",
-  cohere: "COHERE_API_KEY",
-  mistral: "MISTRAL_API_KEY",
-  qwen: "QWENCLOUD_API_KEY",
   openrouter: "OPENROUTER_API_KEY",
 };
 
@@ -410,7 +177,7 @@ export function getFreeUnconfiguredProviders(): ProviderStatus[] {
 export function calcCost(model: string, promptTokens: number, completionTokens: number): number {
   const provider = findProviderForModel(model);
   const m = provider?.models.find((m) => m.id === model);
-  const pricing = m?.pricing || [0.15, 0.60];
+  const pricing = m?.pricing || [3.0, 15.0];
   return (promptTokens / 1_000_000) * pricing[0] + (completionTokens / 1_000_000) * pricing[1];
 }
 
@@ -419,7 +186,8 @@ export function getProviderForModel(modelId: string): ProviderName | null {
   return p ? p.name : null;
 }
 
-// ── Request builders ─────────────────────────────────────────────────────────
+// ── Request builder / response parsers ──────────────────────────────────────
+// OpenRouter is fully OpenAI-compatible — a single code path covers it.
 
 function buildOpenAIRequest(
   provider: ProviderConfig,
@@ -448,57 +216,6 @@ function buildOpenAIRequest(
   };
 }
 
-function buildGeminiRequest(
-  provider: ProviderConfig,
-  model: string,
-  systemPrompt: string,
-  userMessage: string,
-  maxTokens: number,
-  stream: boolean,
-  apiKeyOverride?: string
-) {
-  const apiKey = apiKeyOverride || getApiKey(provider.name);
-  const action = stream ? "streamGenerateContent?alt=sse" : "generateContent";
-  return {
-    url: `${getEndpoint(provider.name)}/models/${model}:${action}${action.includes("?") ? "&" : "?"}key=${apiKey}`,
-    headers: { "Content-Type": "application/json" },
-    body: {
-      system_instruction: { parts: [{ text: systemPrompt }] },
-      contents: [{ role: "user", parts: [{ text: userMessage }] }],
-      generationConfig: { maxOutputTokens: maxTokens },
-    },
-  };
-}
-
-function buildCohereRequest(
-  provider: ProviderConfig,
-  model: string,
-  systemPrompt: string,
-  userMessage: string,
-  maxTokens: number,
-  stream: boolean,
-  apiKeyOverride?: string
-) {
-  // Cohere v2 API uses OpenAI-compatible messages array format
-  return {
-    url: getEndpoint(provider.name),
-    headers: {
-      Authorization: `Bearer ${apiKeyOverride || getApiKey(provider.name)}`,
-      "Content-Type": "application/json",
-      "X-Client-Name": "autonomous-code-wizard",
-    },
-    body: {
-      model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userMessage },
-      ],
-      max_tokens: maxTokens,
-      stream,
-    },
-  };
-}
-
 export function buildRequest(
   modelId: string,
   systemPrompt: string,
@@ -509,49 +226,13 @@ export function buildRequest(
 ) {
   const provider = findProviderForModel(modelId);
   if (!provider) throw new Error(`Unknown model: ${modelId}`);
-
-  if (provider.name === "gemini") {
-    return buildGeminiRequest(provider, modelId, systemPrompt, userMessage, maxTokens, stream, apiKeyOverride);
-  }
-  if (provider.name === "cohere") {
-    return buildCohereRequest(provider, modelId, systemPrompt, userMessage, maxTokens, stream, apiKeyOverride);
-  }
-  // OpenAI-compatible: deepseek, kilo, groq, cerebras, xai
   return buildOpenAIRequest(provider, modelId, systemPrompt, userMessage, maxTokens, stream, apiKeyOverride);
 }
-
-// ── Response parsers ─────────────────────────────────────────────────────────
 
 export function parseResponse(
   providerName: ProviderName,
   data: any
 ): { content: string; totalTokens: number; promptTokens: number; completionTokens: number } {
-  if (providerName === "gemini") {
-    const candidate = data.candidates?.[0];
-    const content = candidate?.content?.parts?.map((p: any) => p.text || "").join("") || "";
-    const usage = data.usageMetadata || {};
-    return {
-      content,
-      totalTokens: usage.totalTokenCount || 0,
-      promptTokens: usage.promptTokenCount || 0,
-      completionTokens: usage.candidatesTokenCount || 0,
-    };
-  }
-  if (providerName === "cohere") {
-    // v2 API: OpenAI-compatible response shape
-    const content = data.message?.content?.[0]?.text
-      || data.choices?.[0]?.message?.content
-      || data.text
-      || "";
-    const usage = data.usage || {};
-    return {
-      content,
-      totalTokens: (usage.billed_units?.input_tokens || 0) + (usage.billed_units?.output_tokens || 0),
-      promptTokens: usage.billed_units?.input_tokens || usage.tokens?.input_tokens || 0,
-      completionTokens: usage.billed_units?.output_tokens || usage.tokens?.output_tokens || 0,
-    };
-  }
-  // OpenAI-compatible (deepseek, kilo, groq, cerebras)
   const content = data.choices?.[0]?.message?.content || "";
   const usage = data.usage || {};
   return {
@@ -563,33 +244,13 @@ export function parseResponse(
 }
 
 export function parseStreamChunk(providerName: ProviderName, line: string): string | null {
-  if (providerName === "gemini") {
-    if (!line.startsWith("data: ")) return null;
-    try {
-      const data = JSON.parse(line.slice(6));
-      return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
-    } catch { return null; }
-  }
-  if (providerName === "cohere") {
-    // v2 SSE uses OpenAI-compatible data: prefix with delta content
-    if (!line.startsWith("data: ")) return null;
-    const payload = line.slice(6).trim();
-    if (payload === "[DONE]") return null;
-    try {
-      const data = JSON.parse(payload);
-      // v2 delta format
-      return data.delta?.message?.content?.text
-        || data.choices?.[0]?.delta?.content
-        || null;
-    } catch { return null; }
-  }
-  // OpenAI-compatible (deepseek, kilo, groq, cerebras)
   if (!line.startsWith("data: ")) return null;
   const payload = line.slice(6).trim();
   if (payload === "[DONE]") return null;
   try {
     const data = JSON.parse(payload);
     return data.choices?.[0]?.delta?.content || null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
-
